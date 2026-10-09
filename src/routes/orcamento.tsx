@@ -48,7 +48,7 @@ orcamento.get("/", async (c) => {
                   </div>
                   {l ? (
                     <div class="bar">
-                      <i style={`width:${w}%;background:${l.over ? "#ef4444" : cat.color}`}></i>
+                      <i class={l.over ? "over" : ""} style={`width:${w}%`}></i>
                     </div>
                   ) : null}
                 </li>

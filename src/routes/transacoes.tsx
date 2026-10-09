@@ -28,11 +28,13 @@ type FormProps = {
   back: string;
 };
 
+// Order is deliberate: who → how much → which category. Enter on "Destinatário" moves to the
+// amount; Enter on the amount drops the keyboard so the category grid is visible (see app.js).
 const TxForm = ({ cats, payees, tx, error, back }: FormProps) => {
   const kind: Kind = tx?.kind ?? "out";
   const amount = tx ? (tx.amount_cents / 100).toFixed(2).replace(".", ",") : "";
   return (
-    <form method="post" action={tx ? `/transacoes/${tx.id}` : "/nova"} class="txform" id="txform">
+    <form method="post" action={tx ? `/transacoes/${tx.id}` : "/nova"} class={`txform ${kind}`} id="txform">
       {error ? <p class="err">{error}</p> : null}
       <div class="kind">
         <label class={kind === "out" ? "on" : ""}>
@@ -42,9 +44,27 @@ const TxForm = ({ cats, payees, tx, error, back }: FormProps) => {
           <input type="radio" name="kind" value="in" checked={kind === "in"} /> Entrada
         </label>
       </div>
-      <label class="amount">
+      <label class="field">
+        Destinatário ou origem
+        <input
+          name="payee"
+          list="payees"
+          value={tx?.payee ?? ""}
+          placeholder="Padaria, aluguel, salário"
+          maxlength={80}
+          autocomplete="off"
+          enterkeyhint="next"
+          autofocus={!tx}
+        />
+        <datalist id="payees">
+          {payees.map((p) => (
+            <option value={p} />
+          ))}
+        </datalist>
+      </label>
+      <label class="field amount">
         <span>R$</span>
-        <input name="amount" inputmode="decimal" placeholder="0,00" value={amount} required autofocus={!tx} autocomplete="off" />
+        <input name="amount" inputmode="decimal" placeholder="0,00" value={amount} required autocomplete="off" enterkeyhint="done" />
       </label>
       <div class="cats">
         {cats.map((cat) => (
@@ -62,32 +82,25 @@ const TxForm = ({ cats, payees, tx, error, back }: FormProps) => {
         </label>
       </div>
       <details open={!!tx}>
-        <summary>Detalhes</summary>
+        <summary>Data e observação</summary>
         <label>
           Data
           <input type="date" name="date" value={tx?.date ?? todayISO()} required />
         </label>
         <label>
-          Destino / origem
-          <input name="payee" list="payees" value={tx?.payee ?? ""} placeholder="ex.: Supermercado X" maxlength={80} />
-          <datalist id="payees">
-            {payees.map((p) => (
-              <option value={p} />
-            ))}
-          </datalist>
-        </label>
-        <label>
           Observação
-          <input name="note" value={tx?.note ?? ""} maxlength={200} />
+          <input name="note" value={tx?.note ?? ""} maxlength={200} enterkeyhint="done" />
         </label>
       </details>
-      <div class="actions">
-        <a href={back} class="btn ghost">
-          Cancelar
-        </a>
-        <button type="submit" class="btn">
-          {tx ? "Salvar" : "Adicionar"}
-        </button>
+      <div class="submitbar">
+        <div class="actions">
+          <a href={back} class="btn ghost">
+            Cancelar
+          </a>
+          <button type="submit" class="btn primary">
+            {tx ? "Salvar" : "Adicionar"}
+          </button>
+        </div>
       </div>
     </form>
   );

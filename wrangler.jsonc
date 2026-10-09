@@ -16,8 +16,8 @@
     {
       "binding": "DB",
       "database_name": "finance",
-      // Replace with the id printed by `wrangler d1 create finance` (see docs/SETUP.md).
-      "database_id": "00000000-0000-0000-0000-000000000000",
+      // From `wrangler d1 create finance`.
+      "database_id": "7b8e324a-c252-4027-adc1-5934f762b6ec",
       "migrations_dir": "migrations"
     }
   ]

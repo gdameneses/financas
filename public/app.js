@@ -7,6 +7,8 @@
     var chips = form.querySelectorAll(".chip");
     function applyKind() {
       var kind = form.querySelector('input[name=kind]:checked').value;
+      form.classList.toggle("out", kind === "out");
+      form.classList.toggle("in", kind === "in");
       kinds.forEach(function (l) { l.classList.toggle("on", l.querySelector("input").value === kind); });
       chips.forEach(function (ch) {
         var k = ch.dataset.kind;
@@ -30,6 +32,23 @@
       if (!digits) { amount.value = ""; return; }
       var n = parseInt(digits, 10);
       amount.value = (n / 100).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    });
+
+    // Enter never submits from a text field: payee → amount → (keyboard away, categories visible).
+    var payee = form.querySelector('input[name=payee]');
+    payee.addEventListener("keydown", function (e) {
+      if (e.key === "Enter") { e.preventDefault(); amount.focus(); }
+    });
+    amount.addEventListener("keydown", function (e) {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        amount.blur();
+        var cats = form.querySelector(".cats");
+        if (cats) cats.scrollIntoView({ block: "nearest", behavior: "smooth" });
+      }
+    });
+    form.querySelectorAll('input[name=note], input[name=date]').forEach(function (el) {
+      el.addEventListener("keydown", function (e) { if (e.key === "Enter") { e.preventDefault(); el.blur(); } });
     });
   }
 
