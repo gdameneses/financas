@@ -131,6 +131,9 @@ export async function requestAccess(
       .bind(code, device.id, ip, email, name, `+${CODE_TTL_MIN} minutes`),
   ]);
 
+  // Also in the Worker logs (Cloudflare dashboard → Workers → finance → Logs, or `wrangler tail`),
+  // so an admin can read it without the app or e-mail. Only account members see those logs.
+  console.log(`[acesso] código ${code} para ${name} <${email}> do IP ${ip} (vale ${CODE_TTL_MIN} min)`);
   const text = `${name} (${email}) pediu acesso ao Finanças a partir do IP ${ip}.\n\nCódigo: ${code}\nVale por ${CODE_TTL_MIN} minutos. Você também vê este pedido em Mais → Acessos.`;
   const send = emailAdmins(c.env, `Pedido de acesso: ${name}`, text).then(async (ok) => {
     if (ok) await db.prepare("UPDATE access_codes SET emailed = 1 WHERE device_id = ? AND used_at IS NULL").bind(device!.id).run();
