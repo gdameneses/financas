@@ -21,10 +21,18 @@ To test from the phone on the same Wi-Fi: `npm run dev:lan` and open `http://<la
 
 ## 2. Cloudflare account (personal)
 
+The personal login lives in its own wrangler config dir so it never clashes with the Urlbox login on
+the same machine. Prefix every wrangler command with it (or `export` it in the shell):
+
 ```sh
+export XDG_CONFIG_HOME=$HOME/.config/cf-personal
 npx wrangler login
 npx wrangler d1 create finance
 ```
+
+A brand-new account has no `workers.dev` subdomain yet; the first deploy prints a dashboard link
+instead of a URL. Register one (dashboard → Workers & Pages, or
+`PUT /accounts/<id>/workers/subdomain {"subdomain":"<name>"}`) and deploy again.
 
 Copy the printed `database_id` into `wrangler.jsonc`, then:
 
