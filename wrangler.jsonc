@@ -1,0 +1,22 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "finance",
+  "main": "src/index.tsx",
+  "compatibility_date": "2026-08-01",
+  "compatibility_flags": ["nodejs_compat"],
+  "assets": { "directory": "./public", "binding": "ASSETS", "html_handling": "none" },
+  "observability": { "enabled": true },
+  "vars": {
+    // Set to "1" in production so requests without a Cloudflare Access identity are rejected.
+    "REQUIRE_ACCESS": "0"
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "finance",
+      // Replace with the id printed by `wrangler d1 create finance` (see docs/SETUP.md).
+      "database_id": "00000000-0000-0000-0000-000000000000",
+      "migrations_dir": "migrations"
+    }
+  ]
+}
