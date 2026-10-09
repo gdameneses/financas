@@ -6,8 +6,8 @@ import { clientIp, ipAllowed } from "./lib/ip";
 import { logAccess, type Outcome } from "./lib/accesslog";
 
 // Static assets must load on the gate pages too; they are not logged.
-const PUBLIC_PREFIXES = ["/manifest.webmanifest", "/sw.js", "/app.css", "/app.js", "/icons/", "/offline.html"];
-const isPublicAsset = (path: string) => PUBLIC_PREFIXES.some((p) => path === p || path.startsWith(p));
+const PUBLIC_FILES = new Set(["/manifest.webmanifest", "/sw.js", "/app.css", "/app.js", "/offline.html"]);
+const isPublicAsset = (path: string) => PUBLIC_FILES.has(path) || path.startsWith("/icons/");
 
 /** Layer 0: serve assets, resolve the client IP, and log every other request after it completes. */
 export const accessLog: MiddlewareHandler<AppEnv> = async (c, next) => {
