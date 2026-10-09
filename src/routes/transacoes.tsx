@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 import type { AppEnv } from "../env";
 import { Layout } from "../pages/layout";
-import { MonthNav, TxList } from "../pages/bits";
+import { CatIcon, Icon, MonthNav, TxList } from "../pages/bits";
 import {
   createTransaction,
   deleteTransaction,
@@ -70,15 +70,16 @@ const TxForm = ({ cats, payees, tx, error, back }: FormProps) => {
         {cats.map((cat) => (
           <label class={`chip ${cat.kind} ${tx?.category_id === cat.id ? "on" : ""}`} data-kind={cat.kind}>
             <input type="radio" name="category_id" value={cat.id} checked={tx?.category_id === cat.id} />
-            <span class="ico" style={`background:${cat.color}`}>
-              {cat.icon}
-            </span>
+            <CatIcon icon={cat.icon} color={cat.color} />
             {cat.name}
           </label>
         ))}
         <label class={`chip any ${tx && tx.category_id === null ? "on" : ""}`} data-kind="any">
           <input type="radio" name="category_id" value="" checked={!!tx && tx.category_id === null} />
-          <span class="ico">❔</span>Sem categoria
+          <span class="ico">
+            <Icon name="question" />
+          </span>
+          Sem categoria
         </label>
       </div>
       <details open={!!tx}>
@@ -156,7 +157,7 @@ transacoes.post("/nova", async (c) => {
       400,
     );
   }
-  await createTransaction(c.env.DB, parsed.tx);
+  await createTransaction(c.env.DB, parsed.tx, c.get("user").id);
   return c.redirect(`/?mes=${parsed.tx.date.slice(0, 7)}&ok=${encodeURIComponent("Lançamento adicionado")}`);
 });
 
@@ -179,7 +180,7 @@ transacoes.get("/transacoes", async (c) => {
           </option>
           {cats.map((cat) => (
             <option value={cat.id} selected={catQ === String(cat.id)}>
-              {cat.icon} {cat.name}
+              {cat.name}
             </option>
           ))}
         </select>

@@ -10,7 +10,12 @@ export default defineConfig(async () => {
         wrangler: { configPath: "./wrangler.jsonc" },
         miniflare: {
           // Explicit so a developer's .dev.vars (e.g. LIBERADO=true) can't change test behaviour.
-          bindings: { TEST_MIGRATIONS: migrations, ENROLL_SECRET: "test-enroll-secret", LIBERADO: "false", REQUIRE_ACCESS: "0" },
+          bindings: {
+            TEST_MIGRATIONS: migrations,
+            LIBERADO: "false",
+            REQUIRE_ACCESS: "0",
+            ADMIN_EMAILS: "admin@example.com,second@example.com",
+          },
         },
       }),
     ],

@@ -103,10 +103,11 @@ export async function getTransaction(db: D1Database, id: number): Promise<Transa
 
 export type TxInput = { date: string; amount_cents: number; kind: Kind; category_id: number | null; payee: string; note: string };
 
-export async function createTransaction(db: D1Database, t: TxInput): Promise<number> {
+/** Shared ledger: every row remembers who added it. */
+export async function createTransaction(db: D1Database, t: TxInput, userId: number | null = null): Promise<number> {
   const r = await db
-    .prepare("INSERT INTO transactions (date, amount_cents, kind, category_id, payee, note) VALUES (?, ?, ?, ?, ?, ?)")
-    .bind(t.date, t.amount_cents, t.kind, t.category_id, t.payee, t.note)
+    .prepare("INSERT INTO transactions (date, amount_cents, kind, category_id, payee, note, user_id) VALUES (?, ?, ?, ?, ?, ?, ?)")
+    .bind(t.date, t.amount_cents, t.kind, t.category_id, t.payee, t.note, userId)
     .run();
   return Number(r.meta.last_row_id);
 }

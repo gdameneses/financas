@@ -78,7 +78,7 @@ relatorios.get("/", async (c) => {
             {r.out.map((l) => (
               <tr>
                 <td>
-                  {l.icon} {l.name}
+                  {l.name}
                 </td>
                 <td>{formatBRL(l.total)}</td>
                 <td>{l.share_pct}%</td>
@@ -101,7 +101,7 @@ relatorios.get("/", async (c) => {
               {r.in.map((l) => (
                 <tr>
                   <td>
-                    {l.icon} {l.name}
+                    {l.name}
                   </td>
                   <td>{formatBRL(l.total)}</td>
                   <td>{l.share_pct}%</td>
@@ -246,7 +246,7 @@ relatorios.get("/", async (c) => {
               {r.lines.map((l) => (
                 <tr class={l.over ? "over" : ""}>
                   <td>
-                    {l.icon} {l.name}
+                    {l.name}
                   </td>
                   <td>
                     {formatBRL(l.spent)} / {formatBRL(l.cap)}
@@ -274,7 +274,7 @@ relatorios.get("/", async (c) => {
               {r.unbudgeted.map((u) => (
                 <tr>
                   <td>
-                    {u.icon} {u.name}
+                    {u.name}
                   </td>
                   <td>{formatBRL(u.spent)}</td>
                 </tr>

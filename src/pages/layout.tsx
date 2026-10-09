@@ -1,10 +1,12 @@
 import type { Child } from "hono/jsx";
-import { html } from "hono/html";
+import { html, raw } from "hono/html";
+import { SPRITE } from "../sprite";
+import { Icon } from "./bits";
 
 type Props = {
   title: string;
   children: Child;
-  /** Hide nav + FAB on gate pages (enroll/login). */
+  /** Hide nav + add button on gate pages and full-screen forms. */
   bare?: boolean;
   active?: "home" | "tx" | "rel" | "mais";
   toast?: string;
@@ -27,12 +29,13 @@ export const Layout = ({ title, children, bare, active, toast }: Props) => (
       <link rel="stylesheet" href="/app.css" />
     </head>
     <body>
+      {raw(SPRITE)}
       {toast ? <div class="toast" id="toast">{toast}</div> : null}
       <main class={bare ? "bare" : ""}>{children}</main>
       {bare ? null : (
         <>
-          <a class="fab" href="/nova" aria-label="Nova transação">
-            +
+          <a class="fab" href="/nova" aria-label="Novo lançamento">
+            <Icon name="plus" />
           </a>
           <nav class="tabs">
             <a href="/" class={active === "home" ? "on" : ""}>

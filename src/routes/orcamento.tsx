@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 import type { AppEnv } from "../env";
 import { Layout } from "../pages/layout";
-import { MonthNav } from "../pages/bits";
+import { CatIcon, MonthNav } from "../pages/bits";
 import { ensureBudgetsFor, listCategories, setBudget } from "../db";
 import { buildOrcamento } from "../reports/orcamento";
 import { currentMonth, isMonth } from "../lib/dates";
@@ -37,9 +37,7 @@ orcamento.get("/", async (c) => {
               return (
                 <li>
                   <div class="brow">
-                    <span class="ico" style={`background:${cat.color}`}>
-                      {cat.icon}
-                    </span>
+                    <CatIcon icon={cat.icon} color={cat.color} />
                     <span class="txt">
                       <b>{cat.name}</b>
                       <small>{l ? `${formatBRL(l.spent)} de ${formatBRL(l.cap)} · ${l.used_pct}%` : "sem teto"}</small>

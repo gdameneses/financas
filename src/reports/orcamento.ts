@@ -87,12 +87,12 @@ export function orcamentoMarkdown(r: OrcamentoReport): string {
     "|---|---:|---:|---:|---:|---:|",
     ...r.lines.map(
       (l) =>
-        `| ${l.icon} ${l.name}${l.over ? " ⚠️" : ""} | ${formatBRL(l.cap)} | ${formatBRL(l.spent)} | ${l.used_pct}% | ${formatBRL(l.remaining)} | ${formatBRL(l.projected)} |`,
+        `| ${l.name}${l.over ? " ⚠️" : ""} | ${formatBRL(l.cap)} | ${formatBRL(l.spent)} | ${l.used_pct}% | ${formatBRL(l.remaining)} | ${formatBRL(l.projected)} |`,
     ),
   ];
   if (r.unbudgeted.length) {
     out.push("", "## Sem teto definido", "", "| Categoria | Gasto |", "|---|---:|");
-    out.push(...r.unbudgeted.map((u) => `| ${u.icon} ${u.name} | ${formatBRL(u.spent)} |`));
+    out.push(...r.unbudgeted.map((u) => `| ${u.name} | ${formatBRL(u.spent)} |`));
   }
   return out.join("\n") + "\n";
 }

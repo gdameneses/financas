@@ -11,10 +11,12 @@ echo 'ENROLL_SECRET=choose-a-long-random-string' > .dev.vars
 npm run dev                      # http://localhost:8787
 ```
 
-First visit → `/enroll` → paste the `ENROLL_SECRET` as the code → `/login` creates the account on first run.
+First visit → `/acesso` → enter an e-mail that is in `ADMIN_EMAILS` + a device name. While no device has
+ever been approved, that request is approved on the spot (and its IP goes on the allowlist); then `/login`
+creates the account. Every later device goes through the code flow (below).
 
-To switch the device gate off entirely (every browser is enrolled on first visit, login still required),
-set `LIBERADO=true` — in `.dev.vars` locally, or in `wrangler.jsonc` `vars` for production. Default is `"false"`.
+To switch the IP + device gates off entirely (every browser is approved on first visit, login still
+required), set `LIBERADO=true` in `.dev.vars`. Never in production.
 
 To test from the phone on the same Wi-Fi: `npm run dev:lan` and open `http://<laptop-ip>:8787`.
 (Cookies are set without `Secure` over plain http, so this works; production is https-only.)
@@ -38,8 +40,15 @@ Copy the printed `database_id` into `wrangler.jsonc`, then:
 
 ```sh
 npm run migrate:remote
-npx wrangler secret put ENROLL_SECRET      # long random string; only needed until the first device is enrolled
 npx wrangler deploy
+```
+
+Optional, to e-mail access codes to the admins (otherwise they are only shown in the app):
+create a free Brevo account, verify a sender address (a Gmail works), create an API key, then
+
+```sh
+npx wrangler secret put BREVO_API_KEY
+npx wrangler secret put EMAIL_FROM          # the verified sender address
 ```
 
 Note the URL: `https://finance.<your-subdomain>.workers.dev`.
@@ -58,11 +67,17 @@ Zero Trust dashboard → **Access → Applications → Add an application → Se
 
 Any other visitor now gets Cloudflare's login page and never reaches the Worker.
 
-## 4. Enroll devices
+## 4. Devices, IPs and users
 
-- First device: open the URL → Access emails you a PIN → `/enroll` → paste `ENROLL_SECRET` → create account.
-- Each further device: on an enrolled device go to **Mais → Dispositivos → Gerar código**, type the 8-char code on the new device within 10 minutes.
-- Lost a device: revoke it from the same page; its session dies immediately.
+- Unknown IP or device → `/acesso` → the person enters e-mail + device name → an 8-digit code is created,
+  shown to admins in **Mais → Acessos → Pedidos** and e-mailed (if Brevo is set up). The admin passes the
+  code on; the person types it within 30 minutes → device approved, its IP allowed → `/login` creates the
+  account for that e-mail.
+- Admins can also approve/deny directly from *Pedidos*, revoke devices (*Aparelhos*), block/unblock users
+  (*Usuários*), manage IPs and ranges (*IPs*, with "seu IP agora" pre-filled) and read every request in
+  *Registro*.
+- The IP list is mandatory: once it has one entry, any request from an unlisted IP is refused (logged as
+  `ip_denied`) and must go through the code flow again. Phones on mobile data change IP often.
 
 Add to home screen (Safari share → "Adicionar à Tela de Início"; Chrome → "Instalar app") for the PWA.
 

@@ -161,3 +161,32 @@ table.rep { width: 100%; border-collapse: collapse; margin: 14px 0; font-size: .
 .rep tr.sumido td { color: var(--fg-dim); text-decoration: line-through; }
 .downloads { display: flex; gap: 18px; justify-content: center; font-size: .9rem; }
 .downloads a { color: var(--fg-dim); border-bottom: 1px solid var(--line-strong); }
+
+/* flat icons (inlined Phosphor sprite) */
+.i { width: 1.15em; height: 1.15em; fill: currentColor; vertical-align: -0.2em; flex: none; }
+.ico .i { width: 18px; height: 18px; vertical-align: 0; }
+h1 .i, .menu .i { width: 1.1em; height: 1.1em; margin-right: 8px; color: var(--fg-dim); }
+.fab .i { width: 24px; height: 24px; }
+.monthnav .i { width: 18px; height: 18px; }
+.ico { border-color: currentColor; opacity: .9; }
+
+/* access request + code */
+input.code { font-size: 1.6rem !important; letter-spacing: .2em; text-align: center; font-weight: 500; }
+.reqs { list-style: none; margin: 0; padding: 0; }
+.reqs li { padding: 14px 0; border-bottom: 1px solid var(--line); display: flex; flex-direction: column; gap: 10px; }
+.codebox { border: 1px solid var(--line-strong); border-radius: var(--r); padding: 10px 12px; text-align: center; }
+.codebox small { display: block; color: var(--fg-dim); font-size: .75rem; }
+.codebox b { font-size: 1.6rem; letter-spacing: .18em; font-weight: 500; }
+form.inline { display: flex; flex-direction: column; gap: 8px; flex: 1; }
+.check { flex-direction: row; align-items: center; gap: 8px; margin: 0; font-size: .82rem; }
+.check input { width: 16px; height: 16px; margin: 0; }
+.ipform { align-items: flex-end; flex-wrap: wrap; }
+.ipform label { margin: 0 0 8px; }
+.ipform .btn { margin-bottom: 8px; }
+.iconpick { display: grid; grid-template-columns: repeat(6, 1fr); gap: 8px; margin: 8px 0 14px; }
+.iconpick .chip { padding: 8px 0; }
+.iconpick .chip.on { border-color: var(--fg); color: var(--fg); }
+table.log td small { display: block; color: var(--fg-dim); font-size: .75rem; }
+table.log tr.deny td:last-child { color: var(--out-fg); }
+table.log td:not(:first-child), table.log th:not(:first-child) { text-align: left; white-space: normal; }
+.downloads a.on { color: var(--fg); border-color: var(--fg); }

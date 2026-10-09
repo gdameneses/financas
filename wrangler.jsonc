@@ -9,8 +9,11 @@
   "vars": {
     // Set to "1" in production so requests without a Cloudflare Access identity are rejected.
     "REQUIRE_ACCESS": "0",
-    // "true" switches the device gate off: any browser is enrolled automatically on first visit.
+    // Admins: manage categories, budgets, reports, users, IPs and read the access log.
+    "ADMIN_EMAILS": "admin@example.com,partner@example.com",
+    // "true" switches the IP + device gates off: any browser is approved on first visit. Dev only.
     "LIBERADO": "false"
+    // Optional secrets (wrangler secret put): BREVO_API_KEY and EMAIL_FROM for e-mailing access codes.
   },
   "d1_databases": [
     {

@@ -100,7 +100,7 @@ export function mensalMarkdown(r: MensalReport): string {
     "| Categoria | Total | % | Qtd | Mês anterior | Δ |",
     "|---|---:|---:|---:|---:|---:|",
     ...r.out.map(
-      (l) => `| ${l.icon} ${l.name} | ${formatBRL(l.total)} | ${l.share_pct}% | ${l.count} | ${formatBRL(l.prev_total)} | ${sign(l.delta)} |`,
+      (l) => `| ${l.name} | ${formatBRL(l.total)} | ${l.share_pct}% | ${l.count} | ${formatBRL(l.prev_total)} | ${sign(l.delta)} |`,
     ),
     "",
     "## Entradas por categoria",
@@ -108,7 +108,7 @@ export function mensalMarkdown(r: MensalReport): string {
     "| Categoria | Total | % | Qtd | Mês anterior | Δ |",
     "|---|---:|---:|---:|---:|---:|",
     ...r.in.map(
-      (l) => `| ${l.icon} ${l.name} | ${formatBRL(l.total)} | ${l.share_pct}% | ${l.count} | ${formatBRL(l.prev_total)} | ${sign(l.delta)} |`,
+      (l) => `| ${l.name} | ${formatBRL(l.total)} | ${l.share_pct}% | ${l.count} | ${formatBRL(l.prev_total)} | ${sign(l.delta)} |`,
     ),
   ];
   if (r.top_payees.length) {

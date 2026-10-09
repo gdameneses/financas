@@ -1,6 +1,8 @@
 import { Hono } from "hono";
 import type { AppEnv } from "../env";
 import { Layout } from "../pages/layout";
+import { CatIcon, Icon } from "../pages/bits";
+import { CATEGORY_ICONS } from "../icons";
 import {
   countCategoryTransactions,
   createCategory,
@@ -13,26 +15,37 @@ import {
 
 export const categorias = new Hono<AppEnv>();
 
-const PALETTE = ["#6366f1", "#22c55e", "#f97316", "#0ea5e9", "#ef4444", "#a855f7", "#ec4899", "#14b8a6", "#eab308", "#84cc16", "#f43f5e", "#64748b", "#9ca3af"];
+const PALETTE = ["#7a6f9a", "#6f8f6a", "#a67a52", "#5f8296", "#a06060", "#8a6f93", "#a0677f", "#5d8d87", "#a39358", "#7f9358", "#9c5f6c", "#6f7682", "#7d7d7d"];
+const isIcon = (s: string): s is (typeof CATEGORY_ICONS)[number] => (CATEGORY_ICONS as readonly string[]).includes(s);
 
-const CatFields = ({ cat }: { cat?: Category }) => (
-  <>
-    <label>
-      Nome
-      <input name="name" value={cat?.name ?? ""} required maxlength={40} />
-    </label>
-    <div class="row">
-      <label>
-        Ícone
-        <input name="icon" value={cat?.icon ?? "🏷️"} maxlength={8} class="emoji" />
-      </label>
-      <label>
-        Cor
-        <input type="color" name="color" value={cat?.color ?? PALETTE[Math.floor(Math.random() * PALETTE.length)]} />
-      </label>
-    </div>
-  </>
-);
+const CatFields = ({ cat }: { cat?: Category }) => {
+  const color = cat?.color ?? PALETTE[Math.floor(Math.random() * PALETTE.length)];
+  const icon = cat?.icon ?? "tag";
+  return (
+    <>
+      <div class="row">
+        <label>
+          Nome
+          <input name="name" value={cat?.name ?? ""} required maxlength={40} />
+        </label>
+        <label>
+          Cor
+          <input type="color" name="color" value={color} />
+        </label>
+      </div>
+      <div class="iconpick">
+        {CATEGORY_ICONS.map((name) => (
+          <label class={`chip ${icon === name ? "on any" : ""}`}>
+            <input type="radio" name="icon" value={name} checked={icon === name} />
+            <span class="ico">
+              <Icon name={name} />
+            </span>
+          </label>
+        ))}
+      </div>
+    </>
+  );
+};
 
 const Group = ({ title, cats }: { title: string; cats: Category[] }) => (
   <section>
@@ -42,9 +55,7 @@ const Group = ({ title, cats }: { title: string; cats: Category[] }) => (
         {cats.map((cat) => (
           <li>
             <a href={`/categorias/${cat.id}`}>
-              <span class="ico" style={`background:${cat.color}`}>
-                {cat.icon}
-              </span>
+              <CatIcon icon={cat.icon} color={cat.color} />
               {cat.name}
               {cat.is_preset ? <small class="badge">padrão</small> : null}
             </a>
@@ -56,6 +67,14 @@ const Group = ({ title, cats }: { title: string; cats: Category[] }) => (
     )}
   </section>
 );
+
+function readFields(form: Record<string, unknown>) {
+  return {
+    name: String(form.name ?? "").trim().slice(0, 40),
+    icon: isIcon(String(form.icon)) ? String(form.icon) : "tag",
+    color: /^#[0-9a-f]{6}$/i.test(String(form.color)) ? String(form.color) : "#7d7d7d",
+  };
+}
 
 categorias.get("/", async (c) => {
   const cats = await listCategories(c.env.DB);
@@ -76,8 +95,8 @@ categorias.get("/", async (c) => {
             </label>
           </div>
           <CatFields />
-          <button type="submit" class="btn">
-            Criar
+          <button type="submit" class="btn primary">
+            Criar categoria
           </button>
         </form>
       </section>
@@ -87,14 +106,9 @@ categorias.get("/", async (c) => {
 
 categorias.post("/", async (c) => {
   const form = await c.req.parseBody();
-  const name = String(form.name ?? "").trim().slice(0, 40);
-  if (!name) return c.redirect("/categorias");
-  await createCategory(c.env.DB, {
-    name,
-    kind: form.kind === "in" ? "in" : "out",
-    icon: String(form.icon ?? "🏷️").trim().slice(0, 8) || "🏷️",
-    color: /^#[0-9a-f]{6}$/i.test(String(form.color)) ? String(form.color) : "#9ca3af",
-  });
+  const f = readFields(form);
+  if (!f.name) return c.redirect("/categorias");
+  await createCategory(c.env.DB, { ...f, kind: form.kind === "in" ? "in" : "out" });
   return c.redirect(`/categorias?ok=${encodeURIComponent("Categoria criada")}`);
 });
 
@@ -110,7 +124,7 @@ categorias.get("/:id", async (c) => {
   return c.html(
     <Layout title={cat.name} bare>
       <h1>
-        {cat.icon} {cat.name}
+        <CatIcon icon={cat.icon} color={cat.color} /> {cat.name}
       </h1>
       <p class="muted">
         {cat.kind === "in" ? "Entrada" : "Saída"} · {n} lançamento(s){cat.is_preset ? " · categoria padrão" : ""}
@@ -121,7 +135,7 @@ categorias.get("/:id", async (c) => {
           <a href="/categorias" class="btn ghost">
             Voltar
           </a>
-          <button type="submit" class="btn">
+          <button type="submit" class="btn primary">
             Salvar
           </button>
         </div>
@@ -138,17 +152,8 @@ categorias.get("/:id", async (c) => {
 categorias.post("/:id", async (c) => {
   const id = Number(c.req.param("id"));
   if (!(await getCategory(c.env.DB, id))) return c.notFound();
-  const form = await c.req.parseBody();
-  const name = String(form.name ?? "").trim().slice(0, 40);
-  if (name) {
-    await renameCategory(
-      c.env.DB,
-      id,
-      name,
-      String(form.icon ?? "").trim().slice(0, 8) || "🏷️",
-      /^#[0-9a-f]{6}$/i.test(String(form.color)) ? String(form.color) : "#9ca3af",
-    );
-  }
+  const f = readFields(await c.req.parseBody());
+  if (f.name) await renameCategory(c.env.DB, id, f.name, f.icon, f.color);
   return c.redirect(`/categorias?ok=${encodeURIComponent("Categoria salva")}`);
 });
 
