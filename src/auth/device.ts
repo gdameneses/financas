@@ -37,6 +37,16 @@ export async function enrollDevice(c: Context<AppEnv>, name: string): Promise<nu
   return Number(res.meta.last_row_id);
 }
 
+/** Used only when LIBERADO=true: enrolls the current browser without a code. */
+export async function autoEnroll(c: Context<AppEnv>): Promise<Device> {
+  const id = await enrollDevice(c, "liberado (sem código)");
+  const row = await c.env.DB.prepare("SELECT id, name, user_agent, created_at, last_seen_at, revoked_at FROM devices WHERE id = ?")
+    .bind(id)
+    .first<Device>();
+  if (!row) throw new Error("auto-enroll failed");
+  return row;
+}
+
 export async function revokeDevice(db: D1Database, id: number): Promise<void> {
   await db.batch([
     db.prepare("UPDATE devices SET revoked_at = datetime('now') WHERE id = ?").bind(id),

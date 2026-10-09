@@ -9,7 +9,8 @@ export default defineConfig(async () => {
       cloudflareTest({
         wrangler: { configPath: "./wrangler.jsonc" },
         miniflare: {
-          bindings: { TEST_MIGRATIONS: migrations, ENROLL_SECRET: "test-enroll-secret" },
+          // Explicit so a developer's .dev.vars (e.g. LIBERADO=true) can't change test behaviour.
+          bindings: { TEST_MIGRATIONS: migrations, ENROLL_SECRET: "test-enroll-secret", LIBERADO: "false", REQUIRE_ACCESS: "0" },
         },
       }),
     ],

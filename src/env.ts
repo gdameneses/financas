@@ -2,6 +2,8 @@ export type Bindings = {
   DB: D1Database;
   ASSETS: Fetcher;
   REQUIRE_ACCESS: string;
+  /** "true" disables the device gate: unknown browsers are enrolled automatically. */
+  LIBERADO?: string;
   ENROLL_SECRET?: string;
 };
 

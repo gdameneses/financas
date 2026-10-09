@@ -111,6 +111,16 @@ describe("gates", () => {
     expect(r.status).toBe(429);
   });
 
+  it("LIBERADO=true enrolls unknown browsers automatically", async () => {
+    const open = { ...env, LIBERADO: "true" };
+    const r = await app.request(ORIGIN + "/", { redirect: "manual" }, open);
+    expect(r.status).toBe(302);
+    expect(r.headers.get("location")).toBe("/login"); // past the device gate, straight to login
+    expect(r.headers.getSetCookie().some((c) => c.startsWith("fin_device="))).toBe(true);
+    const n = await env.DB.prepare("SELECT COUNT(*) AS n FROM devices").first<{ n: number }>();
+    expect(n).toEqual({ n: 1 });
+  });
+
   it("REQUIRE_ACCESS=1 rejects requests without the Access header", async () => {
     const res = await app.request(ORIGIN + "/", {}, { ...env, REQUIRE_ACCESS: "1" });
     expect(res.status).toBe(403);

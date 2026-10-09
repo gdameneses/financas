@@ -1,6 +1,6 @@
 import type { MiddlewareHandler } from "hono";
 import type { AppEnv } from "./env";
-import { deviceTokenFromRequest, findDevice, touchDevice } from "./auth/device";
+import { autoEnroll, deviceTokenFromRequest, findDevice, touchDevice } from "./auth/device";
 import { findSession, sessionTokenFromRequest } from "./auth/session";
 
 // Static assets (manifest, sw, css, icons) must load on the gate pages too.
@@ -22,7 +22,12 @@ export const requireAccess: MiddlewareHandler<AppEnv> = async (c, next) => {
 export const requireDevice: MiddlewareHandler<AppEnv> = async (c, next) => {
   const path = new URL(c.req.url).pathname;
   if (isPublicAsset(path)) return c.env.ASSETS.fetch(c.req.raw);
-  const device = await findDevice(c.env.DB, deviceTokenFromRequest(c));
+  let device = await findDevice(c.env.DB, deviceTokenFromRequest(c));
+  if (!device && c.env.LIBERADO === "true") {
+    // Gate disabled: enroll this browser on the spot so the rest of the app works unchanged.
+    device = await autoEnroll(c);
+    if (path === "/enroll") return c.redirect("/");
+  }
   if (!device) {
     if (path === "/enroll") return next();
     return c.redirect("/enroll");

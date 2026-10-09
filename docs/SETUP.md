@@ -13,6 +13,9 @@ npm run dev                      # http://localhost:8787
 
 First visit → `/enroll` → paste the `ENROLL_SECRET` as the code → `/login` creates the account on first run.
 
+To switch the device gate off entirely (every browser is enrolled on first visit, login still required),
+set `LIBERADO=true` — in `.dev.vars` locally, or in `wrangler.jsonc` `vars` for production. Default is `"false"`.
+
 To test from the phone on the same Wi-Fi: `npm run dev:lan` and open `http://<laptop-ip>:8787`.
 (Cookies are set without `Secure` over plain http, so this works; production is https-only.)
 
