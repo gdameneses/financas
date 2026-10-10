@@ -244,3 +244,5 @@ details.fold > .legend, details.fold > .legendline { margin-bottom: 14px; }
 /* who added it */
 .who { width: 22px; height: 22px; border-radius: 50%; border: 1px solid var(--line-strong); color: var(--fg-dim); font-size: .7rem; font-weight: 600; display: grid; place-items: center; flex: none; }
 .who:empty { display: none; }
+.chartbox { position: relative; width: 100%; }
+.chartbox canvas { width: 100% !important; height: 100% !important; }

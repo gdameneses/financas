@@ -81,8 +81,9 @@
   function brl(v) { return (v / 100).toLocaleString("pt-BR", { style: "currency", currency: "BRL" }); }
   function charts() {
     if (!window.Chart) return;
-    var fg = getComputedStyle(document.documentElement).getPropertyValue("--muted").trim();
-    Chart.defaults.color = fg;
+    var css = getComputedStyle(document.documentElement);
+    Chart.defaults.color = css.getPropertyValue("--fg-dim").trim() || "#8d8872";
+    Chart.defaults.borderColor = "rgba(128,128,128,.15)";
     Chart.defaults.font.family = "system-ui, sans-serif";
 
     var donut = document.getElementById("donut");
@@ -114,10 +115,7 @@
         type: "bar",
         data: {
           labels: w.labels,
-          datasets: [
-            { label: "Saídas", data: w.expense, backgroundColor: "rgba(196,127,122,.85)", borderRadius: 5 },
-            { label: "Entradas", data: w.income, backgroundColor: "rgba(143,185,150,.6)", borderRadius: 5, hidden: !w.income.some(function (v) { return v > 0; }) },
-          ],
+          datasets: [{ label: "Saídas", data: w.expense, backgroundColor: "rgba(196,127,122,.85)", borderRadius: 5 }],
         },
         options: {
           maintainAspectRatio: false,

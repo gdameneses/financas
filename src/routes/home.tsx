@@ -49,7 +49,8 @@ home.get("/", async (c) => {
     return { date: d, label: `${weekdayLabel(d)} ${dateLabel(d).slice(0, 2)}`, expense: row?.expense ?? 0, income: row?.income ?? 0, count: row?.count ?? 0 };
   });
   const weekExpense = week.reduce((a, d) => a + d.expense, 0);
-  const weekChart = { labels: week.map((d) => d.label), expense: week.map((d) => d.expense), income: week.map((d) => d.income) };
+  // Expenses only: a salary landing inside the window would flatten every other bar.
+  const weekChart = { labels: week.map((d) => d.label), expense: week.map((d) => d.expense), counts: week.map((d) => d.count) };
 
   return c.html(
     <Layout title="Início" active="home" toast={c.req.query("ok") ?? undefined}>
@@ -92,33 +93,33 @@ home.get("/", async (c) => {
         </section>
       ) : null}
 
-      {isCurrent ? (
-        <details class="card fold" id="fold-semana" open>
-          <summary>
-            <span>Últimos 7 dias</span>
-            <b class="neg">− {formatBRL(weekExpense)}</b>
-          </summary>
-          <canvas id="week" data-src="week-data" height="150"></canvas>
-          <ChartData id="week-data" data={weekChart} />
-        </details>
-      ) : null}
-
       {planned.length ? (
         <details class="card fold" id="fold-plano" open>
           <summary>
             <span>Real × planejado</span>
             <a href={`/planejamento?mes=${month}`}>ver tudo</a>
           </summary>
-          <canvas id="plan" data-src="plan-data" height={Math.max(140, planned.length * 34)}></canvas>
+          <div class="chartbox" style={`height:${Math.max(150, planned.length * 36)}px`}>
+            <canvas id="plan" data-src="plan-data"></canvas>
+          </div>
           <ChartData id="plan-data" data={planChart} />
           <p class="muted legendline">
             <i class="sw solid"></i> gasto <i class="sw faded"></i> planejado <i class="sw tick"></i> onde deveria estar hoje
           </p>
         </details>
-      ) : admin ? (
-        <p class="muted">
-          Sem valores planejados para este mês. <a href={`/planejamento?mes=${month}`}>Planejar</a>.
-        </p>
+      ) : null}
+
+      {isCurrent ? (
+        <details class="card fold" id="fold-semana" open>
+          <summary>
+            <span>Últimos 7 dias</span>
+            <b class="neg">− {formatBRL(weekExpense)}</b>
+          </summary>
+          <div class="chartbox" style="height:160px">
+            <canvas id="week" data-src="week-data"></canvas>
+          </div>
+          <ChartData id="week-data" data={weekChart} />
+        </details>
       ) : null}
 
       {out.length ? (
