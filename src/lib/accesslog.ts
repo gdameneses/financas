@@ -5,6 +5,7 @@ import type { AppEnv } from "../env";
 
 export type Outcome =
   | "ok"
+  | "ip_auto" // approved device seen from a network not yet on the list; the network was added
   | "ip_denied"
   | "device_unknown"
   | "device_pending"

@@ -76,13 +76,20 @@ describe("access gates", () => {
     expect((await env.DB.prepare("SELECT status FROM devices").first<{ status: string }>())!.status).toBe("pending");
   });
 
-  it("IP allowlist is mandatory once it has entries, even for an approved device", async () => {
+  it("an approved device is never locked out by a new network: it passes and the network is recorded", async () => {
     const b = await bootstrapAdmin();
     b.ip = IP_OTHER;
     const r = await b.fetch("/");
-    expect(r.headers.get("location")).toBe("/acesso");
+    expect(r.status).toBe(200);
     const log = await env.DB.prepare("SELECT outcome FROM access_log ORDER BY id DESC LIMIT 1").first<{ outcome: string }>();
-    expect(log!.outcome).toBe("ip_denied");
+    expect(log!.outcome).toBe("ip_auto");
+    const ips = await env.DB.prepare("SELECT cidr, label FROM allowed_ips ORDER BY id").all<{ cidr: string; label: string }>();
+    expect(ips.results.map((x) => x.cidr)).toEqual([IP_HOME, IP_OTHER]);
+    expect(ips.results[1].label).toContain("automático");
+    // Unknown devices on an unlisted network are still only shown /acesso.
+    const stranger = new Browser("192.0.2.9");
+    expect((await stranger.fetch("/")).headers.get("location")).toBe("/acesso");
+    expect((await env.DB.prepare("SELECT outcome FROM access_log ORDER BY id DESC LIMIT 1").first<{ outcome: string }>())!.outcome).toBe("ip_denied");
   });
 
   it("new person: request → 8-digit code visible to admins → code approves device and IP", async () => {
@@ -180,14 +187,11 @@ describe("access gates", () => {
   it("bootstrap cannot re-open: approved device asking from a new IP stays approved; after revoke, users>0 blocks it", async () => {
     const admin = await bootstrapAdmin();
     admin.ip = IP_OTHER;
-    // Re-request from a new network: device stays approved, a code is issued for the IP only.
-    let r = await admin.form("/acesso", { op: "request" });
+    // A new network never downgrades an approved device.
+    let r = await admin.fetch("/");
     expect(r.status).toBe(200);
     const dev = await env.DB.prepare("SELECT status, requested_email FROM devices WHERE name = 'laptop'").first<{ status: string; requested_email: string }>();
     expect(dev).toEqual({ status: "approved", requested_email: ADMIN });
-    r = await admin.form("/acesso", { op: "code", code: await pendingCode() });
-    expect(r.headers.get("location")).toBe("/login");
-    expect((await admin.fetch("/")).status).toBe(200); // IP_OTHER now allowed, session intact
     // Even with zero approved devices, an existing user closes the bootstrap door.
     await env.DB.prepare("UPDATE devices SET status = 'revoked'").run();
     const stranger = new Browser(IP_HOME);

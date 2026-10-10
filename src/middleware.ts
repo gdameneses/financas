@@ -36,8 +36,9 @@ export const requireAccess: MiddlewareHandler<AppEnv> = async (c, next) => {
 };
 
 /**
- * Layer 2: IP allowlist (mandatory once non-empty) + approved device.
- * Anything that fails lands on /acesso, which is the only page reachable without both.
+ * Layer 2: approved device, or (for anything else) the IP allowlist.
+ * Unknown/pending/denied devices only ever see /acesso; an approved device passes from any
+ * network and the new network is recorded (allowed_ips + access_log outcome "ip_auto").
  */
 export const requireIpAndDevice: MiddlewareHandler<AppEnv> = async (c, next) => {
   const path = c.req.path;
@@ -58,7 +59,13 @@ export const requireIpAndDevice: MiddlewareHandler<AppEnv> = async (c, next) => 
   const ipOk = cidrs.length === 0 || ipAllowed(ip, cidrs);
   const deviceOk = device?.status === "approved";
 
-  if (ipOk && deviceOk) {
+  if (deviceOk) {
+    if (!ipOk) {
+      // An approved device is trusted on any network: let it through and remember the network,
+      // so a phone leaving the house Wi-Fi is never locked out. The list stays mandatory for everyone else.
+      await c.env.DB.prepare("INSERT OR IGNORE INTO allowed_ips (cidr, label) VALUES (?, ?)").bind(ip, `automático · ${device!.name}`).run();
+      c.set("outcome", "ip_auto");
+    }
     if (path === "/acesso") return c.redirect("/");
     if (device!.last_seen_at.slice(0, 10) !== new Date().toISOString().slice(0, 10)) await touchDevice(c.env.DB, device!.id);
     return next();
