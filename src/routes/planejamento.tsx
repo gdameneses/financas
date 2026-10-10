@@ -22,20 +22,21 @@ const Line = ({ l, canEdit }: { l: OrcamentoLine; canEdit: boolean }) => (
         <b>
           {l.name} <small class="muted">{PACE_LABEL[l.pace]}</small>
         </b>
-        <small>
-          {formatBRL(l.spent)} de {formatBRL(l.cap)} · {l.used_pct}% · <span class={`st ${l.status}`}>{STATUS_LABEL[l.status]}</span>
-        </small>
       </span>
       {canEdit ? (
         <input name={`cap_${l.category_id}`} inputmode="decimal" value={(l.cap / 100).toFixed(2).replace(".", ",")} aria-label={`Planejado para ${l.name}`} />
-      ) : (
-        <b class="amt">{formatBRL(l.remaining)}</b>
-      )}
+      ) : null}
     </div>
-    <div class="bar" title={l.pace === "continuo" ? `esperado até hoje: ${l.expected_pct}%` : ""}>
+    <div class="bar">
       <i class={l.status} style={`width:${Math.min(100, l.used_pct)}%`}></i>
       {l.pace === "continuo" && l.expected_pct < 100 ? <em style={`left:${l.expected_pct}%`}></em> : null}
     </div>
+    <small class="muted meta">
+      <span>
+        {formatBRL(l.spent)} de {formatBRL(l.cap)} ({l.used_pct}%)
+      </span>
+      <span class={`st ${l.status}`}>{STATUS_LABEL[l.status]}</span>
+    </small>
     <small class="muted proj">
       {l.pace === "fixo"
         ? l.over
@@ -54,26 +55,32 @@ planejamento.get("/", async (c) => {
   const [rep, cats] = await Promise.all([buildOrcamento(c.env.DB, month), listCategories(c.env.DB)]);
   const planned = new Set(rep.lines.map((l) => l.category_id));
   const notPlanned = cats.filter((x) => x.kind === "out" && !planned.has(x.id));
+  const over = rep.total_spent > rep.total_cap;
   const body = (
     <>
       <section class="hero small">
+        <small>{over ? "Passou do planejado" : "Restam do planejado"}</small>
+        <h1 class={over ? "neg" : "pos"}>{formatBRL(Math.abs(rep.total_cap - rep.total_spent))}</h1>
         <small>
-          planejado {formatBRL(rep.total_cap)} · gasto {formatBRL(rep.total_spent)}
+          gasto {formatBRL(rep.total_spent)} de {formatBRL(rep.total_cap)}
         </small>
-        <h1 class={rep.total_spent > rep.total_cap ? "neg" : "pos"}>{formatBRL(rep.total_cap - rep.total_spent)}</h1>
         <small>
           {rep.days_elapsed > 0 && rep.days_elapsed < rep.days_in_month
-            ? `dia ${rep.days_elapsed} de ${rep.days_in_month} (${rep.elapsed_pct}%) · projeção ${formatBRL(rep.total_projected)}`
+            ? `dia ${rep.days_elapsed} de ${rep.days_in_month} · projeção ${formatBRL(rep.total_projected)}`
             : rep.days_elapsed === 0
               ? "mês ainda não começou"
               : "mês encerrado"}
         </small>
       </section>
-      <ul class="budget">
-        {rep.lines.map((l) => (
-          <Line l={l} canEdit={admin} />
-        ))}
-      </ul>
+      {rep.lines.length ? (
+        <ul class="budget">
+          {rep.lines.map((l) => (
+            <Line l={l} canEdit={admin} />
+          ))}
+        </ul>
+      ) : admin ? null : (
+        <p class="muted">Nenhum valor planejado para este mês ainda.</p>
+      )}
       {admin && notPlanned.length ? (
         <section>
           <h2>Sem valor planejado</h2>
@@ -110,7 +117,7 @@ planejamento.get("/", async (c) => {
             Salvar planejamento
           </button>
           <p class="muted center">
-            Como cada categoria avisa: <a href="/categorias">tipo por categoria</a>. O risco na barra marca onde uma categoria contínua deveria estar hoje.
+            O traço na barra marca onde uma categoria contínua deveria estar hoje. O tipo de cada categoria se ajusta em <a href="/categorias">Categorias</a>.
           </p>
         </form>
       ) : (

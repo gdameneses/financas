@@ -1,5 +1,6 @@
 // Progressive enhancement only: everything works without this file.
 (function () {
+  var reduceMotion = window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches;
   // --- kind toggle + category filtering on the transaction form ---
   var form = document.getElementById("txform");
   if (form) {
@@ -44,7 +45,7 @@
         e.preventDefault();
         amount.blur();
         var cats = form.querySelector(".cats");
-        if (cats) cats.scrollIntoView({ block: "nearest", behavior: "smooth" });
+        if (cats) cats.scrollIntoView({ block: "nearest", behavior: reduceMotion ? "auto" : "smooth" });
       }
     });
     form.querySelectorAll('input[name=note], input[name=date]').forEach(function (el) {
@@ -127,9 +128,15 @@
   function charts() {
     if (!window.Chart || made.length) return;
     var css = getComputedStyle(document.documentElement);
-    Chart.defaults.color = css.getPropertyValue("--fg-dim").trim() || "#8d8872";
+    var dim = css.getPropertyValue("--fg-dim").trim() || "#8d8872";
+    var fg = css.getPropertyValue("--fg").trim() || "#d9d2b4";
+    var outFg = css.getPropertyValue("--out-fg").trim() || "#c47f7a";
+    var inFg = css.getPropertyValue("--in-fg").trim() || "#8fb996";
+    Chart.defaults.color = dim;
     Chart.defaults.borderColor = "rgba(128,128,128,.15)";
-    Chart.defaults.font.family = "system-ui, sans-serif";
+    Chart.defaults.font.family = css.getPropertyValue("--font").trim() || "system-ui, sans-serif";
+    Chart.defaults.font.size = 12;
+    if (reduceMotion) Chart.defaults.animation = false;
 
     var donut = document.getElementById("donut");
     var d = donut && data(donut.dataset.src);
@@ -145,7 +152,7 @@
     if (b) {
       made.push(new Chart(bars, {
         type: "bar",
-        data: { labels: b.labels, datasets: [{ data: b.values, backgroundColor: b.colors, borderRadius: 6 }] },
+        data: { labels: b.labels, datasets: [{ data: b.values, backgroundColor: b.colors, borderRadius: 4 }] },
         options: {
           indexAxis: "y",
           plugins: { legend: { display: false }, tooltip: { callbacks: { label: function (c) { return " " + brl(c.parsed.x); } } } },
@@ -160,7 +167,7 @@
         type: "bar",
         data: {
           labels: w.labels,
-          datasets: [{ label: "Saídas", data: w.expense, backgroundColor: "rgba(196,127,122,.85)", borderRadius: 5 }],
+          datasets: [{ label: "Saídas", data: w.expense, backgroundColor: outFg, borderRadius: 4 }],
         },
         options: {
           maintainAspectRatio: false,
@@ -178,8 +185,8 @@
         data: {
           labels: p.labels,
           datasets: [
-            { label: "Planejado", data: p.planned, backgroundColor: faded, borderRadius: 6, barPercentage: 0.9, categoryPercentage: 0.9, grouped: false, order: 2 },
-            { label: "Gasto", data: p.actual, backgroundColor: p.colors, borderRadius: 6, barPercentage: 0.55, categoryPercentage: 0.9, grouped: false, order: 1 },
+            { label: "Planejado", data: p.planned, backgroundColor: faded, borderRadius: 4, barPercentage: 0.9, categoryPercentage: 0.9, grouped: false, order: 2 },
+            { label: "Gasto", data: p.actual, backgroundColor: p.colors, borderRadius: 4, barPercentage: 0.55, categoryPercentage: 0.9, grouped: false, order: 1 },
           ],
         },
         options: {
@@ -200,7 +207,7 @@
           afterDatasetsDraw: function (chart) {
             // where a category should be today: a tick at elapsed% of its planned amount
             var ctx = chart.ctx, x = chart.scales.x, y = chart.scales.y;
-            ctx.save(); ctx.strokeStyle = "rgba(217,210,180,.9)"; ctx.lineWidth = 2;
+            ctx.save(); ctx.strokeStyle = fg; ctx.globalAlpha = 0.9; ctx.lineWidth = 2;
             p.planned.forEach(function (cap, i) {
               if (!cap) return;
               var px = x.getPixelForValue(cap * p.elapsedPct / 100), py = y.getPixelForValue(i);
@@ -218,14 +225,17 @@
         data: {
           labels: t.labels,
           datasets: [
-            { type: "bar", label: "Entradas", data: t.income, backgroundColor: "rgba(34,197,94,.7)", borderRadius: 4 },
-            { type: "bar", label: "Saídas", data: t.expense, backgroundColor: "rgba(239,68,68,.7)", borderRadius: 4 },
-            { type: "line", label: "Saldo", data: t.net, borderColor: "#6366f1", backgroundColor: "#6366f1", tension: .3, pointRadius: 2 },
+            { type: "bar", label: "Entradas", data: t.income, backgroundColor: inFg, borderRadius: 4 },
+            { type: "bar", label: "Saídas", data: t.expense, backgroundColor: outFg, borderRadius: 4 },
+            { type: "line", label: "Saldo", data: t.net, borderColor: fg, backgroundColor: fg, borderWidth: 1.5, tension: .3, pointRadius: 2 },
           ],
         },
         options: {
-          plugins: { tooltip: { callbacks: { label: function (c) { return " " + c.dataset.label + ": " + brl(c.parsed.y); } } } },
-          scales: { y: { ticks: { callback: function (v) { return brl(v); }, maxTicksLimit: 5 }, grid: { color: "rgba(128,128,128,.15)" } }, x: { grid: { display: false } } },
+          plugins: { legend: { labels: { boxWidth: 10, boxHeight: 10 } }, tooltip: { callbacks: { label: function (c) { return " " + c.dataset.label + ": " + brl(c.parsed.y); } } } },
+          scales: {
+            y: { ticks: { callback: function (v) { return compact(v); }, maxTicksLimit: 5 }, grid: { display: false }, border: { display: false } },
+            x: { grid: { display: false } },
+          },
         },
       }));
     }

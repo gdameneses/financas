@@ -72,7 +72,7 @@ const Group = ({ title, cats }: { title: string; cats: Category[] }) => (
         ))}
       </ul>
     ) : (
-      <p class="muted">Nenhuma.</p>
+      <p class="muted">Nenhuma categoria ainda.</p>
     )}
   </section>
 );

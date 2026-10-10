@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 import type { AppEnv } from "../env";
 import { Layout } from "../pages/layout";
-import { ChartData, ChartJs, MonthNav } from "../pages/bits";
+import { ChartData, ChartJs, Icon, MonthNav } from "../pages/bits";
 import { listTransactions } from "../db";
 import { buildMensal } from "../reports/mensal";
 import { buildTendencia } from "../reports/tendencia";
@@ -29,10 +29,10 @@ const Tabs = ({ tab, month }: { tab: Tab; month: string }) => (
 const Downloads = ({ json, md }: { json: string; md: string }) => (
   <p class="downloads">
     <a href={json} download>
-      ⬇ JSON
+      <Icon name="download-simple" /> JSON
     </a>
     <a href={md} download>
-      ⬇ Markdown
+      <Icon name="download-simple" /> Markdown
     </a>
   </p>
 );
@@ -62,7 +62,7 @@ relatorios.get("/", async (c) => {
           <canvas id="bars" data-src="bars-data" height="220"></canvas>
           <ChartData
             id="bars-data"
-            data={{ labels: r.out.map((l) => `${l.icon} ${l.name}`), values: r.out.map((l) => l.total), colors: r.out.map((l) => l.color) }}
+            data={{ labels: r.out.map((l) => l.name), values: r.out.map((l) => l.total), colors: r.out.map((l) => l.color) }}
           />
         </section>
         <table class="rep">
@@ -227,7 +227,7 @@ relatorios.get("/", async (c) => {
       <>
         <section class="hero small">
           <small>
-            teto {formatBRL(r.total_cap)} · gasto {formatBRL(r.total_spent)}
+            planejado {formatBRL(r.total_cap)} · gasto {formatBRL(r.total_spent)}
           </small>
           <h1 class={r.total_spent > r.total_cap ? "neg" : "pos"}>{formatBRL(r.total_cap - r.total_spent)}</h1>
           <small>projeção: {formatBRL(r.total_projected)}</small>
@@ -237,7 +237,7 @@ relatorios.get("/", async (c) => {
             <thead>
               <tr>
                 <th>Categoria</th>
-                <th>Gasto / teto</th>
+                <th>Gasto / planejado</th>
                 <th>%</th>
                 <th>Proj.</th>
               </tr>
@@ -259,14 +259,14 @@ relatorios.get("/", async (c) => {
           </table>
         ) : (
           <p class="muted">
-            Nenhum teto definido para este mês. <a href={`/planejamento?mes=${month}`}>Definir tetos</a>.
+            Nenhum valor planejado para este mês. <a href={`/planejamento?mes=${month}`}>Abrir planejamento</a>.
           </p>
         )}
         {r.unbudgeted.length ? (
           <table class="rep">
             <thead>
               <tr>
-                <th>Sem teto</th>
+                <th>Sem valor planejado</th>
                 <th>Gasto</th>
               </tr>
             </thead>

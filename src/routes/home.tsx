@@ -76,7 +76,7 @@ home.get("/", async (c) => {
               </p>
               {a.note ? (
                 <p class="note">
-                  “{a.note}” <small class="muted">{a.note_email?.split("@")[0]}</small>
+                  “{a.note}” <small>{a.note_email?.split("@")[0]}</small>
                 </p>
               ) : null}
               <div class="row">
@@ -99,7 +99,9 @@ home.get("/", async (c) => {
       {planned.length ? (
         <details class="card fold" id="fold-plano" open>
           <summary>
-            <span>Real × planejado</span>
+            <span>
+              <Icon name="caret-right" class="caret" /> Real × planejado
+            </span>
             <a href={`/planejamento?mes=${month}`}>ver tudo</a>
           </summary>
           <div class="chartbox" style={`height:${Math.max(150, planned.length * 36)}px`}>
@@ -107,7 +109,15 @@ home.get("/", async (c) => {
           </div>
           <ChartData id="plan-data" data={planChart} />
           <p class="muted legendline">
-            <i class="sw solid"></i> gasto <i class="sw faded"></i> planejado <i class="sw tick"></i> onde deveria estar hoje
+            <span>
+              <i class="sw solid"></i> gasto
+            </span>
+            <span>
+              <i class="sw faded"></i> planejado
+            </span>
+            <span>
+              <i class="sw tick"></i> esperado hoje
+            </span>
           </p>
         </details>
       ) : null}
@@ -115,7 +125,9 @@ home.get("/", async (c) => {
       {isCurrent ? (
         <details class="card fold" id="fold-semana" open>
           <summary>
-            <span>Últimos 7 dias</span>
+            <span>
+              <Icon name="caret-right" class="caret" /> Últimos 7 dias
+            </span>
             <b class="neg">− {formatBRL(weekExpense)}</b>
           </summary>
           <div class="chartbox" style="height:160px">
@@ -128,7 +140,9 @@ home.get("/", async (c) => {
       {out.length ? (
         <details class="card fold" id="fold-categorias" open>
           <summary>
-            <span>Para onde foi</span>
+            <span>
+              <Icon name="caret-right" class="caret" /> Para onde foi
+            </span>
             <b class="neg">− {formatBRL(expense)}</b>
           </summary>
           <div class="donutrow" id="donutrow">

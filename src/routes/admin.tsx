@@ -232,7 +232,7 @@ admin.get("/", async (c) => {
               <tr class={r.outcome === "ok" ? "" : "deny"}>
                 <td>{when(r.at)}</td>
                 <td>
-                  {r.email ?? r.device_name ?? "—"}
+                  {r.email ?? r.device_name ?? "sem nome"}
                   <small>
                     {r.ip}
                     {r.country ? ` ${r.country}` : ""} · {shortUA(r.user_agent)}

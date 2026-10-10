@@ -186,7 +186,7 @@ transacoes.get("/transacoes", async (c) => {
           ))}
         </select>
       </form>
-      <TxList txs={txs} />
+      <TxList txs={txs} empty={catQ ? "Nenhum lançamento nessa categoria neste mês." : "Nenhum lançamento neste mês. Toque em + para começar."} />
     </Layout>,
   );
 });
