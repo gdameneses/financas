@@ -18,8 +18,11 @@ export const gates = new Hono<AppEnv>();
 
 type Reason = "ip_denied" | "device_unknown" | "device_pending" | "device_denied" | string;
 
+// An approved device keeps its own e-mail/name; devices migrated from v1 have none yet and may fill them in.
+const lockedIdentity = (d: Device | null) => d?.status === "approved" && !!d.requested_email;
+
 const RequestForm = ({ device, error }: { device: Device | null; error?: string }) => {
-  const approved = device?.status === "approved";
+  const approved = lockedIdentity(device);
   return (
     <form method="post" action="/acesso" class="stack">
       <input type="hidden" name="op" value="request" />
@@ -115,8 +118,8 @@ gates.post("/acesso", async (c) => {
   }
 
   // An approved device asking for a new network keeps its own e-mail and name.
-  const email = device?.status === "approved" ? device.requested_email : String(form.email ?? "").trim().toLowerCase();
-  const name = device?.status === "approved" ? device.name : String(form.name ?? "").trim().slice(0, 40);
+  const email = lockedIdentity(device) ? device!.requested_email : String(form.email ?? "").trim().toLowerCase();
+  const name = lockedIdentity(device) ? device!.name : String(form.name ?? "").trim().slice(0, 40);
   if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email) || !name) {
     return c.html(<AccessPage reason={reason} device={device} ip={ip} step="request" error="Informe um e-mail válido e um nome." />, 400);
   }

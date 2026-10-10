@@ -143,8 +143,12 @@ export async function requestAccess(
 
   let device = existing;
   if (device && device.status === "approved") {
-    // Keep approved; only remember the IP being asked for. The e-mail stays what it was approved for.
-    await db.prepare("UPDATE devices SET requested_ip = ? WHERE id = ?").bind(ip, device.id).run();
+    // Keep approved; only remember the IP being asked for. The e-mail stays what it was approved
+    // for (v1-migrated devices had none: the first request fills it, but it never becomes an admin
+    // address that way — registration for admins is gated separately).
+    await db.prepare("UPDATE devices SET requested_ip = ?, requested_email = CASE WHEN requested_email = '' THEN ? ELSE requested_email END, name = CASE WHEN requested_email = '' THEN ? ELSE name END WHERE id = ?")
+      .bind(ip, email, name, device.id)
+      .run();
     device = (await getDevice(db, device.id))!;
   } else if (device && device.status === "pending") {
     await db.prepare("UPDATE devices SET requested_email = ?, name = ?, requested_ip = ? WHERE id = ?").bind(email, name, ip, device.id).run();
