@@ -56,7 +56,9 @@ p { margin: 8px 0; }
 .card { border: 1px solid var(--line); border-radius: var(--r); padding: 14px; margin: 12px 0; }
 .card h2 { margin-top: 0; }
 .donutrow { display: flex; align-items: center; gap: 16px; }
-.donutwrap { position: relative; flex: 0 0 44%; height: 170px; }
+.donutwrap { position: relative; flex: 0 0 44%; width: 44%; min-width: 0; height: 170px; overflow: hidden; }
+.donutwrap canvas { max-width: 100%; }
+.chartbox { min-width: 0; }
 .legend { list-style: none; padding: 0; margin: 0; flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 8px; font-size: .85rem; }
 .legend li { display: flex; align-items: center; gap: 7px; color: var(--fg-dim); }
 .legend li b { margin-left: auto; font-weight: 400; color: var(--fg); }
