@@ -168,7 +168,11 @@
             legend: { display: false },
             tooltip: { callbacks: { label: function (c) { return " " + c.dataset.label + ": " + brl(c.parsed.x); } } },
           },
-          scales: { x: logAxis(), y: { grid: { display: false } } },
+          // Linear on purpose: here the ratio IS the message, so 5% of the plan must look like 5%.
+          scales: {
+            x: { beginAtZero: true, grid: { display: false }, border: { display: false }, ticks: { maxTicksLimit: 5, callback: function (v) { return compact(v); } } },
+            y: { grid: { display: false } },
+          },
         },
         plugins: [{
           id: "pace",
