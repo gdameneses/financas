@@ -1,6 +1,7 @@
-// Minimal service worker: cache the static shell, never cache app pages
-// (they carry auth state), show offline.html when the network is down.
-const VERSION = "v7";
+// Service worker: makes the app installable and shows offline.html without network.
+// Static files are NETWORK-FIRST (cache only as an offline fallback), so a deploy is never
+// paired with a stale app.js/app.css on the next load. App pages are never cached (auth state).
+const VERSION = "v8";
 const SHELL = ["/app.css", "/app.js", "/manifest.webmanifest", "/icons/icon.svg", "/offline.html"];
 
 self.addEventListener("install", (e) => {
@@ -17,7 +18,15 @@ self.addEventListener("fetch", (e) => {
   const url = new URL(e.request.url);
   if (e.request.method !== "GET" || url.origin !== location.origin) return;
   if (SHELL.includes(url.pathname) || url.pathname.startsWith("/icons/")) {
-    e.respondWith(caches.match(e.request).then((hit) => hit || fetch(e.request)));
+    e.respondWith(
+      fetch(e.request)
+        .then((res) => {
+          const copy = res.clone();
+          caches.open(VERSION).then((c) => c.put(e.request, copy));
+          return res;
+        })
+        .catch(() => caches.match(e.request)),
+    );
     return;
   }
   if (e.request.mode === "navigate") {
