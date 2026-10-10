@@ -34,6 +34,14 @@ const CatFields = ({ cat }: { cat?: Category }) => {
           <input type="color" name="color" value={color} />
         </label>
       </div>
+      <label>
+        Como avisa no planejamento
+        <select name="pace">
+          <option value="continuo" selected={(cat?.pace ?? "continuo") === "continuo"}>Contínua: gasto espalhado no mês (mercado, transporte)</option>
+          <option value="fixo" selected={cat?.pace === "fixo"}>Fixa: paga de uma vez (aluguel, assinaturas)</option>
+          <option value="livre" selected={cat?.pace === "livre"}>Livre: em surtos (lazer, presentes)</option>
+        </select>
+      </label>
       <div class="iconpick">
         {CATEGORY_ICONS.map((name) => (
           <label class={`chip ${icon === name ? "on any" : ""}`}>
@@ -74,6 +82,7 @@ function readFields(form: Record<string, unknown>) {
     name: String(form.name ?? "").trim().slice(0, 40),
     icon: isIcon(String(form.icon)) ? String(form.icon) : "tag",
     color: /^#[0-9a-f]{6}$/i.test(String(form.color)) ? String(form.color) : "#7d7d7d",
+    pace: (["continuo", "fixo", "livre"] as const).find((p) => p === String(form.pace)) ?? "continuo",
   };
 }
 
@@ -156,7 +165,7 @@ categorias.post("/:id", async (c) => {
   if (id === null) return c.notFound();
   if (!(await getCategory(c.env.DB, id))) return c.notFound();
   const f = readFields(await c.req.parseBody());
-  if (f.name) await renameCategory(c.env.DB, id, f.name, f.icon, f.color);
+  if (f.name) await renameCategory(c.env.DB, id, f.name, f.icon, f.color, f.pace);
   return c.redirect(`/categorias?ok=${encodeURIComponent("Categoria salva")}`);
 });
 

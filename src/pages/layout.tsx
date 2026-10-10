@@ -8,7 +8,7 @@ type Props = {
   children: Child;
   /** Hide nav + add button on gate pages and full-screen forms. */
   bare?: boolean;
-  active?: "home" | "tx" | "rel" | "mais";
+  active?: "home" | "tx" | "plan" | "mais";
   toast?: string;
 };
 
@@ -44,8 +44,8 @@ export const Layout = ({ title, children, bare, active, toast }: Props) => (
             <a href="/transacoes" class={active === "tx" ? "on" : ""}>
               Lançamentos
             </a>
-            <a href="/relatorios" class={active === "rel" ? "on" : ""}>
-              Relatórios
+            <a href="/planejamento" class={active === "plan" ? "on" : ""}>
+              Planejamento
             </a>
             <a href="/mais" class={active === "mais" ? "on" : ""}>
               Mais

@@ -259,7 +259,7 @@ relatorios.get("/", async (c) => {
           </table>
         ) : (
           <p class="muted">
-            Nenhum teto definido para este mês. <a href={`/orcamento?mes=${month}`}>Definir tetos</a>.
+            Nenhum teto definido para este mês. <a href={`/planejamento?mes=${month}`}>Definir tetos</a>.
           </p>
         )}
         {r.unbudgeted.length ? (
@@ -288,7 +288,7 @@ relatorios.get("/", async (c) => {
   }
 
   return c.html(
-    <Layout title={`Relatórios · ${LABELS[tab]}`} active="rel">
+    <Layout title={`Relatórios · ${LABELS[tab]}`} active="mais">
       <MonthNav month={month} base={`/relatorios?tab=${tab}`} />
       <Tabs tab={tab} month={month} />
       {body}

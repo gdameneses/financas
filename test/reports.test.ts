@@ -98,6 +98,6 @@ describe("db-backed reports", () => {
     expect(m.over).toBe(false);
     // Past month: projection equals spend.
     const past = await buildOrcamento(env.DB, "2026-09", new Date("2026-10-10T15:00:00Z"));
-    expect(past.unbudgeted[0]).toEqual({ name: "Mercado", icon: "shopping-cart", spent: 50000 });
+    expect(past.unbudgeted[0]).toMatchObject({ name: "Mercado", icon: "shopping-cart", spent: 50000 });
   });
 });

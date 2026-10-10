@@ -2,6 +2,8 @@
 import { monthRange } from "./lib/dates";
 
 export type Kind = "in" | "out";
+/** How spend accrues inside a month; drives which budget alerts make sense. */
+export type Pace = "continuo" | "fixo" | "livre";
 
 export type Category = {
   id: number;
@@ -11,6 +13,7 @@ export type Category = {
   color: string;
   is_preset: number;
   sort: number;
+  pace: Pace;
 };
 
 export type Transaction = {
@@ -45,20 +48,20 @@ export async function getCategory(db: D1Database, id: number): Promise<Category 
   return db.prepare("SELECT * FROM categories WHERE id = ?").bind(id).first<Category>();
 }
 
-export async function createCategory(db: D1Database, c: { name: string; kind: Kind; icon: string; color: string }) {
+export async function createCategory(db: D1Database, c: { name: string; kind: Kind; icon: string; color: string; pace: Pace }) {
   const sort = await db
     .prepare("SELECT COALESCE(MAX(sort), 0) + 1 AS s FROM categories WHERE kind = ?")
     .bind(c.kind)
     .first<{ s: number }>();
   const r = await db
-    .prepare("INSERT INTO categories (name, kind, icon, color, is_preset, sort) VALUES (?, ?, ?, ?, 0, ?)")
-    .bind(c.name, c.kind, c.icon, c.color, sort?.s ?? 1)
+    .prepare("INSERT INTO categories (name, kind, icon, color, is_preset, sort, pace) VALUES (?, ?, ?, ?, 0, ?, ?)")
+    .bind(c.name, c.kind, c.icon, c.color, sort?.s ?? 1, c.pace)
     .run();
   return Number(r.meta.last_row_id);
 }
 
-export async function renameCategory(db: D1Database, id: number, name: string, icon: string, color: string) {
-  await db.prepare("UPDATE categories SET name = ?, icon = ?, color = ? WHERE id = ?").bind(name, icon, color, id).run();
+export async function renameCategory(db: D1Database, id: number, name: string, icon: string, color: string, pace: Pace) {
+  await db.prepare("UPDATE categories SET name = ?, icon = ?, color = ?, pace = ? WHERE id = ?").bind(name, icon, color, pace, id).run();
 }
 
 export async function countCategoryTransactions(db: D1Database, id: number): Promise<number> {

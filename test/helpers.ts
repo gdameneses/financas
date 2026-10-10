@@ -8,9 +8,11 @@ export async function resetDb(): Promise<void> {
   const all = env.TEST_MIGRATIONS.flatMap((m) => m.queries);
   const seed = all.find((q) => q.includes("INSERT INTO categories"));
   const iconMap = all.find((q) => q.includes("UPDATE categories SET icon = CASE"));
+  const paceMaps = all.filter((q) => q.includes("UPDATE categories SET pace"));
   if (!seed || !iconMap) throw new Error("preset seed not found in migrations");
   await env.DB.batch([
     // Children before parents: several tables reference users and devices.
+    env.DB.prepare("DELETE FROM alerts"),
     env.DB.prepare("DELETE FROM access_log"),
     env.DB.prepare("DELETE FROM access_codes"),
     env.DB.prepare("DELETE FROM login_attempts"),
@@ -23,5 +25,6 @@ export async function resetDb(): Promise<void> {
     env.DB.prepare("DELETE FROM categories"),
     env.DB.prepare(seed),
     env.DB.prepare(iconMap),
+    ...paceMaps.map((q) => env.DB.prepare(q)),
   ]);
 }

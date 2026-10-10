@@ -190,3 +190,34 @@ table.log td small { display: block; color: var(--fg-dim); font-size: .75rem; }
 table.log tr.deny td:last-child { color: var(--out-fg); }
 table.log td:not(:first-child), table.log th:not(:first-child) { text-align: left; white-space: normal; }
 .downloads a.on { color: var(--fg); border-color: var(--fg); }
+
+/* alerts */
+.alerts { display: flex; flex-direction: column; gap: 10px; margin: 12px 0; }
+.alert { border: 1px solid var(--line-strong); border-left-width: 3px; border-radius: var(--r); padding: 12px 14px; }
+.alert.ritmo { border-left-color: var(--focus); }
+.alert.80 { border-left-color: var(--out); }
+.alert.\31 00 { border-left-color: var(--out-fg); }
+.alert p { margin: 0 0 8px; }
+.alert .i { color: var(--fg-dim); }
+.alert .note { color: var(--fg-dim); font-style: italic; }
+.alert .row { align-items: center; gap: 8px; }
+.notebox { margin: 0; border: 0; padding: 0; flex: 1; }
+.notebox summary { padding: 6px 0; font-size: .85rem; }
+.notebox summary::after { content: ""; }
+.notebox form { margin-top: 6px; }
+.notebox form input { flex: 1; }
+.notebox form .btn { width: auto; }
+
+/* planning */
+.plan .brow input { width: 120px !important; text-align: right; }
+.plan .bar { position: relative; overflow: visible; }
+.plan .bar i.ok { background: var(--fg-dim) !important; }
+.plan .bar i.atencao { background: var(--focus) !important; }
+.plan .bar i.estourou { background: var(--out-fg) !important; }
+.plan .bar em { position: absolute; top: -4px; width: 1px; height: 11px; background: var(--fg); opacity: .8; }
+.plan .proj { display: block; margin-top: 6px; }
+.st.ok { color: var(--in-fg); } .st.atencao { color: var(--focus); } .st.estourou { color: var(--out-fg); }
+.center { text-align: center; }
+.legendline { display: flex; gap: 14px; justify-content: center; align-items: center; font-size: .78rem; margin: 8px 0 0; }
+.sw { display: inline-block; width: 14px; height: 8px; border-radius: 2px; margin-right: 4px; vertical-align: middle; }
+.sw.solid { background: var(--fg-dim); } .sw.faded { background: var(--fg-dim); opacity: .3; } .sw.tick { width: 2px; height: 12px; background: var(--fg); }

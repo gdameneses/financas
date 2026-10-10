@@ -24,8 +24,8 @@ mais.get("/mais", async (c) => {
               </a>
             </li>
             <li>
-              <a href="/orcamento">
-                <Icon name="receipt" /> Orçamento
+              <a href="/relatorios">
+                <Icon name="trend-up" /> Relatórios
               </a>
             </li>
             <li>

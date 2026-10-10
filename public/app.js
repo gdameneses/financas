@@ -95,6 +95,47 @@
         },
       });
     }
+    var plan = document.getElementById("plan");
+    var p = plan && data(plan.dataset.src);
+    if (p) {
+      var faded = p.colors.map(function (c) { return c + "40"; }); // same hue, 25% alpha = "planejado"
+      new Chart(plan, {
+        type: "bar",
+        data: {
+          labels: p.labels,
+          datasets: [
+            { label: "Planejado", data: p.planned, backgroundColor: faded, borderRadius: 6, barPercentage: 0.9, categoryPercentage: 0.9, grouped: false, order: 2 },
+            { label: "Gasto", data: p.actual, backgroundColor: p.colors, borderRadius: 6, barPercentage: 0.55, categoryPercentage: 0.9, grouped: false, order: 1 },
+          ],
+        },
+        options: {
+          indexAxis: "y",
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { display: false },
+            tooltip: { callbacks: { label: function (c) { return " " + c.dataset.label + ": " + brl(c.parsed.x); } } },
+          },
+          scales: {
+            x: { ticks: { callback: function (v) { return brl(v); }, maxTicksLimit: 4 }, grid: { color: "rgba(128,128,128,.15)" } },
+            y: { grid: { display: false } },
+          },
+        },
+        plugins: [{
+          id: "pace",
+          afterDatasetsDraw: function (chart) {
+            // where a category should be today: a tick at elapsed% of its planned amount
+            var ctx = chart.ctx, x = chart.scales.x, y = chart.scales.y;
+            ctx.save(); ctx.strokeStyle = "rgba(217,210,180,.9)"; ctx.lineWidth = 2;
+            p.planned.forEach(function (cap, i) {
+              if (!cap) return;
+              var px = x.getPixelForValue(cap * p.elapsedPct / 100), py = y.getPixelForValue(i);
+              ctx.beginPath(); ctx.moveTo(px, py - 10); ctx.lineTo(px, py + 10); ctx.stroke();
+            });
+            ctx.restore();
+          },
+        }],
+      });
+    }
     var trend = document.getElementById("trend");
     var t = trend && data(trend.dataset.src);
     if (t) {
