@@ -76,8 +76,9 @@ Any other visitor now gets Cloudflare's login page and never reaches the Worker.
 - Admins can also approve/deny directly from *Pedidos*, revoke devices (*Aparelhos*), block/unblock users
   (*Usuários*), manage IPs and ranges (*IPs*, with "seu IP agora" pre-filled) and read every request in
   *Registro*.
-- The IP list is mandatory: once it has one entry, any request from an unlisted IP is refused (logged as
-  `ip_denied`) and must go through the code flow again. Phones on mobile data change IP often.
+- An approved device is never blocked by a new network: it passes, the network is added to the list
+  (label `automático · <device>`) and the request is logged as `ip_auto`. Anything that is not an approved
+  device must come from a listed IP to go beyond `/acesso` (otherwise `ip_denied`).
 
 Add to home screen (Safari share → "Adicionar à Tela de Início"; Chrome → "Instalar app") for the PWA.
 
