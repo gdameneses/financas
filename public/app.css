@@ -236,10 +236,17 @@ details.fold > canvas, details.fold > .donutwrap { margin-top: 4px; }
 details.fold > .legend, details.fold > .legendline { margin-bottom: 14px; }
 @media (prefers-reduced-motion: reduce) { details.fold > summary span::before { transition: none; } }
 
-/* legend: full names, full amounts; the name wraps before anything is cut */
-.legend li span { flex: 1; min-width: 0; line-height: 1.2; }
-.legend li b { flex: none; margin-left: 8px; }
-details.fold > .donutrow { margin-bottom: 14px; }
+/* legend: compact next to the donut (name truncates), full-width below it when expanded */
+.legend li span { flex: 1 1 auto; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.legend li b { flex: none; margin-left: auto; padding-left: 8px; }
+.donutrow.expanded { flex-direction: column; align-items: stretch; }
+.donutrow.expanded .donutwrap { flex: none; width: 100%; height: 220px; }
+.donutrow.expanded .legend { font-size: .95rem; gap: 10px; }
+.donutrow.expanded .legend li span { white-space: normal; overflow: visible; }
+.donutrow.expanded .legend li { padding-bottom: 8px; border-bottom: 1px solid var(--line); }
+.donutrow.expanded .legend li:last-child { border-bottom: 0; padding-bottom: 0; }
+.expandline { margin: 8px 0 14px; font-size: .85rem; }
+.expandline a { color: var(--fg-dim); border-bottom: 1px solid var(--line-strong); }
 
 /* who added it */
 .who { width: 22px; height: 22px; border-radius: 50%; border: 1px solid var(--line-strong); color: var(--fg-dim); font-size: .7rem; font-weight: 600; display: grid; place-items: center; flex: none; }

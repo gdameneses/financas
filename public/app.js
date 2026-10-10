@@ -73,6 +73,25 @@
     } catch (e) { /* storage unavailable: just stay open */ }
   });
 
+  // --- "ver detalhes": donut full width with the legend underneath; remembered per device ---
+  document.querySelectorAll("[data-expand]").forEach(function (a) {
+    var box = document.getElementById(a.dataset.expand);
+    if (!box) return;
+    var key = "expand:" + a.dataset.expand;
+    function apply(on) {
+      box.classList.toggle("expanded", on);
+      a.textContent = on ? "menos detalhes" : "ver detalhes";
+      window.dispatchEvent(new Event("resize"));
+    }
+    try { apply(localStorage.getItem(key) === "1"); } catch (e) { /* ignore */ }
+    a.addEventListener("click", function (e) {
+      e.preventDefault();
+      var on = !box.classList.contains("expanded");
+      apply(on);
+      try { localStorage.setItem(key, on ? "1" : "0"); } catch (e) { /* ignore */ }
+    });
+  });
+
   // --- charts ---
   function data(id) {
     var el = document.getElementById(id);

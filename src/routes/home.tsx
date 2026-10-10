@@ -131,7 +131,7 @@ home.get("/", async (c) => {
             <span>Para onde foi</span>
             <b class="neg">− {formatBRL(expense)}</b>
           </summary>
-          <div class="donutrow">
+          <div class="donutrow" id="donutrow">
             <div class="donutwrap">
               <canvas id="donut" data-src="donut-data"></canvas>
             </div>
@@ -145,6 +145,9 @@ home.get("/", async (c) => {
               ))}
             </ul>
           </div>
+          <p class="center expandline">
+            <a href="#" data-expand="donutrow">ver detalhes</a>
+          </p>
           <ChartData id="donut-data" data={donut} />
         </details>
       ) : null}
