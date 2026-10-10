@@ -79,6 +79,22 @@
     return el ? JSON.parse(el.textContent) : null;
   }
   function brl(v) { return (v / 100).toLocaleString("pt-BR", { style: "currency", currency: "BRL" }); }
+  // Compressed (log) value axis: R$ 1.000 → 10.000 → 100.000 are equal steps, so one big
+  // value never flattens the others. Only round ticks (1, 5 × 10^n) get a label.
+  function logAxis(extra) {
+    return Object.assign({
+      type: "logarithmic",
+      min: 100, // R$ 1
+      grid: { color: "rgba(128,128,128,.15)" },
+      ticks: {
+        autoSkip: false,
+        callback: function (v) {
+          var m = v / Math.pow(10, Math.floor(Math.log10(v)));
+          return (m === 1 || m === 5) && v >= 100 ? brl(v) : "";
+        },
+      },
+    }, extra || {});
+  }
   function charts() {
     if (!window.Chart) return;
     var css = getComputedStyle(document.documentElement);
@@ -104,7 +120,7 @@
         options: {
           indexAxis: "y",
           plugins: { legend: { display: false }, tooltip: { callbacks: { label: function (c) { return " " + brl(c.parsed.x); } } } },
-          scales: { x: { ticks: { callback: function (v) { return brl(v); }, maxTicksLimit: 4 }, grid: { color: "rgba(128,128,128,.15)" } }, y: { grid: { display: false } } },
+          scales: { x: logAxis(), y: { grid: { display: false } } },
         },
       });
     }
@@ -120,10 +136,7 @@
         options: {
           maintainAspectRatio: false,
           plugins: { legend: { display: false }, tooltip: { callbacks: { label: function (c) { return " " + c.dataset.label + ": " + brl(c.parsed.y); } } } },
-          scales: {
-            y: { ticks: { callback: function (v) { return brl(v); }, maxTicksLimit: 4 }, grid: { color: "rgba(128,128,128,.15)" } },
-            x: { grid: { display: false } },
-          },
+          scales: { y: logAxis(), x: { grid: { display: false } } },
         },
       });
     }
@@ -147,10 +160,7 @@
             legend: { display: false },
             tooltip: { callbacks: { label: function (c) { return " " + c.dataset.label + ": " + brl(c.parsed.x); } } },
           },
-          scales: {
-            x: { ticks: { callback: function (v) { return brl(v); }, maxTicksLimit: 4 }, grid: { color: "rgba(128,128,128,.15)" } },
-            y: { grid: { display: false } },
-          },
+          scales: { x: logAxis(), y: { grid: { display: false } } },
         },
         plugins: [{
           id: "pace",

@@ -1,6 +1,6 @@
 // Minimal service worker: cache the static shell, never cache app pages
 // (they carry auth state), show offline.html when the network is down.
-const VERSION = "v6";
+const VERSION = "v7";
 const SHELL = ["/app.css", "/app.js", "/manifest.webmanifest", "/icons/icon.svg", "/offline.html"];
 
 self.addEventListener("install", (e) => {
