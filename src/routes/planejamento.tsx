@@ -1,4 +1,4 @@
-// Planejamento: the budget screen. Everyone sees it; only admins change the numbers.
+// Planejamento: the budget screen. Every member sees it; only núcleo admins change the numbers.
 import { Hono } from "hono";
 import type { AppEnv } from "../env";
 import { Layout } from "../pages/layout";
@@ -7,7 +7,7 @@ import { ensureBudgetsFor, listCategories, setBudget, type Pace } from "../db";
 import { buildOrcamento, type OrcamentoLine } from "../reports/orcamento";
 import { currentMonth, isMonth } from "../lib/dates";
 import { formatBRL, parseBRL } from "../lib/money";
-import { requireAdmin } from "../middleware";
+import { requireNucleoAdmin } from "../middleware";
 
 export const planejamento = new Hono<AppEnv>();
 
@@ -50,9 +50,10 @@ const Line = ({ l, canEdit }: { l: OrcamentoLine; canEdit: boolean }) => (
 planejamento.get("/", async (c) => {
   const q = c.req.query("mes");
   const month = q && isMonth(q) ? q : currentMonth();
-  const admin = c.get("user").admin;
-  if (admin) await ensureBudgetsFor(c.env.DB, month);
-  const [rep, cats] = await Promise.all([buildOrcamento(c.env.DB, month), listCategories(c.env.DB)]);
+  const n = c.get("nucleo").id;
+  const admin = c.get("nucleo").role === "admin";
+  if (admin) await ensureBudgetsFor(c.env.DB, n, month);
+  const [rep, cats] = await Promise.all([buildOrcamento(c.env.DB, n, month), listCategories(c.env.DB, n)]);
   const planned = new Set(rep.lines.map((l) => l.category_id));
   const notPlanned = cats.filter((x) => x.kind === "out" && !planned.has(x.id));
   const over = rep.total_spent > rep.total_cap;
@@ -127,18 +128,19 @@ planejamento.get("/", async (c) => {
   );
 });
 
-planejamento.post("/", requireAdmin, async (c) => {
+planejamento.post("/", requireNucleoAdmin, async (c) => {
   const q = c.req.query("mes");
   const month = q && isMonth(q) ? q : currentMonth();
+  const n = c.get("nucleo").id;
   const form = await c.req.parseBody();
-  const cats = await listCategories(c.env.DB);
+  const cats = await listCategories(c.env.DB, n);
   for (const cat of cats) {
     if (cat.kind !== "out") continue;
     const raw = form[`cap_${cat.id}`];
     if (raw === undefined) continue;
     const cents = String(raw).trim() === "" ? 0 : parseBRL(String(raw));
     if (cents === null) continue;
-    await setBudget(c.env.DB, cat.id, month, cents);
+    await setBudget(c.env.DB, n, cat.id, month, cents);
   }
   return c.redirect(`/planejamento?mes=${month}&ok=${encodeURIComponent("Planejamento salvo")}`);
 });

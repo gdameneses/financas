@@ -13,6 +13,7 @@ import {
   sessionTokenFromRequest,
 } from "../auth/session";
 import { adminEmails } from "../lib/email";
+import { addMember } from "../nucleos";
 
 export const gates = new Hono<AppEnv>();
 
@@ -202,7 +203,10 @@ gates.post("/login", async (c) => {
       .prepare("INSERT INTO users (email, password_hash, salt, iterations) VALUES (?, ?, ?, ?)")
       .bind(email, h.hash, h.salt, h.iterations)
       .run();
-    await createSession(c, Number(r.meta.last_row_id), device.id);
+    const userId = Number(r.meta.last_row_id);
+    // The approving admin may have put this device straight into their núcleo.
+    if (device.join_nucleo_id !== null) await addMember(db, device.join_nucleo_id, userId, "membro");
+    await createSession(c, userId, device.id);
     return c.redirect("/");
   }
 

@@ -87,7 +87,7 @@ function readFields(form: Record<string, unknown>) {
 }
 
 categorias.get("/", async (c) => {
-  const cats = await listCategories(c.env.DB);
+  const cats = await listCategories(c.env.DB, c.get("nucleo").id);
   return c.html(
     <Layout title="Categorias" active="mais" toast={c.req.query("ok") ?? undefined}>
       <h1>Categorias</h1>
@@ -118,16 +118,16 @@ categorias.post("/", async (c) => {
   const form = await c.req.parseBody();
   const f = readFields(form);
   if (!f.name) return c.redirect("/categorias");
-  await createCategory(c.env.DB, { ...f, kind: form.kind === "in" ? "in" : "out" });
+  await createCategory(c.env.DB, c.get("nucleo").id, { ...f, kind: form.kind === "in" ? "in" : "out" });
   return c.redirect(`/categorias?ok=${encodeURIComponent("Categoria criada")}`);
 });
 
 categorias.get("/:id", async (c) => {
   const id = parseId(c.req.param("id"));
   if (id === null) return c.notFound();
-  const cat = await getCategory(c.env.DB, id);
+  const cat = await getCategory(c.env.DB, c.get("nucleo").id, id);
   if (!cat) return c.notFound();
-  const n = await countCategoryTransactions(c.env.DB, id);
+  const n = await countCategoryTransactions(c.env.DB, c.get("nucleo").id, id);
   const warn =
     n === 0
       ? "Excluir esta categoria?"
@@ -163,16 +163,18 @@ categorias.get("/:id", async (c) => {
 categorias.post("/:id", async (c) => {
   const id = parseId(c.req.param("id"));
   if (id === null) return c.notFound();
-  if (!(await getCategory(c.env.DB, id))) return c.notFound();
+  const n = c.get("nucleo").id;
+  if (!(await getCategory(c.env.DB, n, id))) return c.notFound();
   const f = readFields(await c.req.parseBody());
-  if (f.name) await renameCategory(c.env.DB, id, f.name, f.icon, f.color, f.pace);
+  if (f.name) await renameCategory(c.env.DB, n, id, f.name, f.icon, f.color, f.pace);
   return c.redirect(`/categorias?ok=${encodeURIComponent("Categoria salva")}`);
 });
 
 categorias.post("/:id/excluir", async (c) => {
   const id = parseId(c.req.param("id"));
   if (id === null) return c.notFound();
-  if (!(await getCategory(c.env.DB, id))) return c.notFound();
-  await deleteCategory(c.env.DB, id);
+  const n = c.get("nucleo").id;
+  if (!(await getCategory(c.env.DB, n, id))) return c.notFound();
+  await deleteCategory(c.env.DB, n, id);
   return c.redirect(`/categorias?ok=${encodeURIComponent("Categoria excluída")}`);
 });

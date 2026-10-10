@@ -26,12 +26,12 @@ export type MensalReport = {
   top_payees: { payee: string; total: number; count: number }[];
 };
 
-export async function buildMensal(db: D1Database, month: string): Promise<MensalReport> {
+export async function buildMensal(db: D1Database, nucleoId: number, month: string): Promise<MensalReport> {
   const prevMonth = addMonths(month, -1);
   const [cur, prev, txs] = await Promise.all([
-    totalsByCategory(db, month),
-    totalsByCategory(db, prevMonth),
-    listTransactions(db, { month }),
+    totalsByCategory(db, nucleoId, month),
+    totalsByCategory(db, nucleoId, prevMonth),
+    listTransactions(db, nucleoId, { month }),
   ]);
 
   const sum = (rows: typeof cur, kind: Kind) => rows.filter((r) => r.kind === kind).reduce((a, r) => a + r.total, 0);

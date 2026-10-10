@@ -54,13 +54,16 @@ export type AlertRow = {
  * A new, higher level dismisses the lower active ones of the same category so the
  * dashboard never shows "80%" and "100%" for the same thing. Idempotent; call on page load.
  */
-export async function syncAlerts(db: D1Database, now = new Date()): Promise<void> {
+export async function syncAlerts(db: D1Database, nucleoId: number, now = new Date()): Promise<void> {
   const month = currentMonth(now);
-  const rep = await buildOrcamento(db, month, now);
+  const rep = await buildOrcamento(db, nucleoId, month, now);
   if (!rep.lines.length) return;
   const elapsedPct = Math.round((rep.days_elapsed / rep.days_in_month) * 100);
   const existing = (
-    await db.prepare("SELECT category_id, level FROM alerts WHERE month = ?").bind(month).all<{ category_id: number; level: Level }>()
+    await db
+      .prepare("SELECT a.category_id, a.level FROM alerts a JOIN categories c ON c.id = a.category_id WHERE a.month = ? AND c.nucleo_id = ?")
+      .bind(month, nucleoId)
+      .all<{ category_id: number; level: Level }>()
   ).results;
   const stmts: D1PreparedStatement[] = [];
   for (const l of rep.lines) {
@@ -84,24 +87,27 @@ export async function syncAlerts(db: D1Database, now = new Date()): Promise<void
   if (stmts.length) await db.batch(stmts);
 }
 
-export async function activeAlerts(db: D1Database, month: string): Promise<AlertRow[]> {
+export async function activeAlerts(db: D1Database, nucleoId: number, month: string): Promise<AlertRow[]> {
   const r = await db
     .prepare(
       `SELECT a.*, c.name, c.icon, c.color, c.pace, u.email AS note_email
        FROM alerts a JOIN categories c ON c.id = a.category_id LEFT JOIN users u ON u.id = a.note_by
-       WHERE a.month = ? AND a.dismissed_at IS NULL ORDER BY a.created_at DESC`,
+       WHERE a.month = ? AND c.nucleo_id = ? AND a.dismissed_at IS NULL ORDER BY a.created_at DESC`,
     )
-    .bind(month)
+    .bind(month, nucleoId)
     .all<AlertRow>();
   return r.results;
 }
 
-export async function dismissAlert(db: D1Database, id: number, userId: number): Promise<void> {
-  await db.prepare("UPDATE alerts SET dismissed_at = datetime('now'), dismissed_by = ? WHERE id = ?").bind(userId, id).run();
+// Scoped through the category: an alert id from another núcleo is a no-op.
+const OWNED = "AND category_id IN (SELECT id FROM categories WHERE nucleo_id = ?)";
+
+export async function dismissAlert(db: D1Database, nucleoId: number, id: number, userId: number): Promise<void> {
+  await db.prepare(`UPDATE alerts SET dismissed_at = datetime('now'), dismissed_by = ? WHERE id = ? ${OWNED}`).bind(userId, id, nucleoId).run();
 }
 
-export async function noteAlert(db: D1Database, id: number, userId: number, note: string): Promise<void> {
-  await db.prepare("UPDATE alerts SET note = ?, note_by = ?, note_at = datetime('now') WHERE id = ?").bind(note, userId, id).run();
+export async function noteAlert(db: D1Database, nucleoId: number, id: number, userId: number, note: string): Promise<void> {
+  await db.prepare(`UPDATE alerts SET note = ?, note_by = ?, note_at = datetime('now') WHERE id = ? ${OWNED}`).bind(note, userId, id, nucleoId).run();
 }
 
 /** The sentence shown on the dashboard, built from the stored numbers. */

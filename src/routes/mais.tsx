@@ -4,19 +4,30 @@ import { Layout } from "../pages/layout";
 import { Icon } from "../pages/bits";
 import { hashPassword, verifyPassword } from "../auth/crypto";
 import { clearLoginAttempts, destroyOtherSessions, loginRateLimited, recordLoginAttempt } from "../auth/session";
+import { currentNucleo } from "../nucleos";
 
 export const mais = new Hono<AppEnv>();
 
+// Works without a núcleo (mounted before requireNucleo): a new user can still reach Senha, Sair
+// and the núcleo page from here.
 mais.get("/mais", async (c) => {
   const user = c.get("user");
-  const pending = user.admin
+  const nucleo = await currentNucleo(c.env.DB, user.id);
+  const nucleoAdmin = nucleo?.role === "admin";
+  const pending = user.appAdmin
     ? ((await c.env.DB.prepare("SELECT COUNT(*) AS n FROM devices WHERE status = 'pending'").first<{ n: number }>())?.n ?? 0)
     : 0;
   return c.html(
     <Layout title="Mais" active="mais" toast={c.req.query("ok") ?? undefined}>
       <h1>Mais</h1>
       <ul class="menu">
-        {user.admin ? (
+        <li>
+          <a href={nucleo ? "/nucleo" : "/comecar"}>
+            <Icon name="users-three" /> Núcleo
+            {nucleo ? <small class="muted"> · {nucleo.name}</small> : <small class="badge new">criar ou entrar</small>}
+          </a>
+        </li>
+        {nucleoAdmin ? (
           <>
             <li>
               <a href="/categorias">
@@ -29,27 +40,30 @@ mais.get("/mais", async (c) => {
               </a>
             </li>
             <li>
-              <a href="/acessos">
-                <Icon name="shield-check" /> Acessos
-                {pending ? <small class="badge new">{pending} pendente(s)</small> : null}
-              </a>
-            </li>
-            <li>
               <a href="/api/export.json" download>
-                <Icon name="download-simple" /> Exportar tudo (JSON)
+                <Icon name="download-simple" /> Exportar o núcleo (JSON)
               </a>
             </li>
           </>
         ) : null}
+        {user.appAdmin ? (
+          <li>
+            <a href="/acessos">
+              <Icon name="shield-check" /> Acessos
+              {pending ? <small class="badge new">{pending} pendente(s)</small> : null}
+            </a>
+          </li>
+        ) : null}
         <li>
           <a href="/config">
-            <Icon name="users" /> Senha
+            <Icon name="lock-key" /> Senha
           </a>
         </li>
       </ul>
       <p class="muted">
         {user.email}
-        {user.admin ? " · administrador" : ""}
+        {nucleo ? ` · ${nucleoAdmin ? "administrador" : "membro"} de ${nucleo.name}` : ""}
+        {user.appAdmin ? " · administra o app" : ""}
       </p>
       <form method="post" action="/logout">
         <button type="submit" class="btn ghost">

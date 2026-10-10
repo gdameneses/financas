@@ -20,9 +20,9 @@ export type TendenciaReport = {
   avg_net: number;
 };
 
-export async function buildTendencia(db: D1Database, toMonth: string, months = 12): Promise<TendenciaReport> {
+export async function buildTendencia(db: D1Database, nucleoId: number, toMonth: string, months = 12): Promise<TendenciaReport> {
   const fromMonth = addMonths(toMonth, -(months - 1));
-  const totals = await totalsByMonth(db, fromMonth, toMonth);
+  const totals = await totalsByMonth(db, nucleoId, fromMonth, toMonth);
   const byMonth = new Map(totals.map((t) => [t.month, t]));
 
   const rows: TendenciaRow[] = [];

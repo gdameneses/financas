@@ -3,7 +3,7 @@ import { describe, it, expect, beforeEach } from "vitest";
 import { levelFor, syncAlerts, activeAlerts, dismissAlert, alertMessage } from "../src/alerts";
 import { createTransaction, setBudget } from "../src/db";
 import { formatBRL } from "../src/lib/money";
-import { resetDb } from "./helpers";
+import { categoryId, fixture, resetDb } from "./helpers";
 
 describe("alert rules", () => {
   it("continuous categories alert on pace, 80 and 100", () => {
@@ -24,48 +24,46 @@ describe("alert rules", () => {
 
 describe("alert sync", () => {
   let uid = 0;
+  let nid = 0;
   beforeEach(async () => {
     await resetDb();
-    const r = await env.DB.prepare("INSERT INTO users (email, password_hash, salt, iterations) VALUES ('u@example.com', 'x', 'y', 1)").run();
-    uid = Number(r.meta.last_row_id);
+    ({ uid, nid } = await fixture());
   });
   const now = new Date("2026-10-05T15:00:00Z"); // day 5 of 31 → 16% elapsed
   const month = "2026-10";
 
-  async function cat(name: string) {
-    return (await env.DB.prepare("SELECT id FROM categories WHERE name = ?").bind(name).first<{ id: number }>())!.id;
-  }
+  const cat = (name: string) => categoryId(nid, name);
 
   it("fires once per level, escalates, and dismissal sticks", async () => {
     const mercado = await cat("Mercado");
-    await setBudget(env.DB, mercado, month, 100000);
-    await createTransaction(env.DB, { date: "2026-10-03", amount_cents: 50000, kind: "out", category_id: mercado, payee: "A", note: "" });
-    await syncAlerts(env.DB, now);
-    await syncAlerts(env.DB, now); // idempotent
-    let alerts = await activeAlerts(env.DB, month);
+    await setBudget(env.DB, nid, mercado, month, 100000);
+    await createTransaction(env.DB, nid, { date: "2026-10-03", amount_cents: 50000, kind: "out", category_id: mercado, payee: "A", note: "" });
+    await syncAlerts(env.DB, nid, now);
+    await syncAlerts(env.DB, nid, now); // idempotent
+    let alerts = await activeAlerts(env.DB, nid, month);
     expect(alerts).toHaveLength(1);
     expect(alerts[0]).toMatchObject({ level: "ritmo", spent_pct: 50, elapsed_pct: 16 });
     expect(alertMessage(alerts[0], formatBRL)).toContain("50% do seu valor planejado para mercado");
 
-    await dismissAlert(env.DB, alerts[0].id, uid);
-    await syncAlerts(env.DB, now);
-    expect(await activeAlerts(env.DB, month)).toHaveLength(0); // dismissed stays dismissed
+    await dismissAlert(env.DB, nid, alerts[0].id, uid);
+    await syncAlerts(env.DB, nid, now);
+    expect(await activeAlerts(env.DB, nid, month)).toHaveLength(0); // dismissed stays dismissed
 
     // Spending reaches 100%: a new level fires even though "ritmo" was dismissed.
-    await createTransaction(env.DB, { date: "2026-10-04", amount_cents: 60000, kind: "out", category_id: mercado, payee: "B", note: "" });
-    await syncAlerts(env.DB, now);
-    alerts = await activeAlerts(env.DB, month);
+    await createTransaction(env.DB, nid, { date: "2026-10-04", amount_cents: 60000, kind: "out", category_id: mercado, payee: "B", note: "" });
+    await syncAlerts(env.DB, nid, now);
+    alerts = await activeAlerts(env.DB, nid, month);
     expect(alerts.map((a) => a.level)).toEqual(["100"]);
   });
 
   it("rent paid in full on day 2 is not an alert; over budget is", async () => {
     const moradia = await cat("Moradia");
-    await setBudget(env.DB, moradia, month, 200000);
-    await createTransaction(env.DB, { date: "2026-10-02", amount_cents: 200000, kind: "out", category_id: moradia, payee: "Aluguel", note: "" });
-    await syncAlerts(env.DB, now);
-    expect(await activeAlerts(env.DB, month)).toHaveLength(0);
-    await createTransaction(env.DB, { date: "2026-10-02", amount_cents: 1000, kind: "out", category_id: moradia, payee: "Condomínio", note: "" });
-    await syncAlerts(env.DB, now);
-    expect((await activeAlerts(env.DB, month)).map((a) => a.level)).toEqual(["100"]);
+    await setBudget(env.DB, nid, moradia, month, 200000);
+    await createTransaction(env.DB, nid, { date: "2026-10-02", amount_cents: 200000, kind: "out", category_id: moradia, payee: "Aluguel", note: "" });
+    await syncAlerts(env.DB, nid, now);
+    expect(await activeAlerts(env.DB, nid, month)).toHaveLength(0);
+    await createTransaction(env.DB, nid, { date: "2026-10-02", amount_cents: 1000, kind: "out", category_id: moradia, payee: "Condomínio", note: "" });
+    await syncAlerts(env.DB, nid, now);
+    expect((await activeAlerts(env.DB, nid, month)).map((a) => a.level)).toEqual(["100"]);
   });
 });

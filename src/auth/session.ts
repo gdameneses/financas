@@ -45,7 +45,7 @@ export async function findSession(
 }
 
 function toUser(c: Context<AppEnv>, row: { user_id: number; email: string }): User {
-  return { id: row.user_id, email: row.email, admin: adminEmails(c.env).includes(row.email) };
+  return { id: row.user_id, email: row.email, appAdmin: adminEmails(c.env).includes(row.email) };
 }
 
 export async function createSession(c: Context<AppEnv>, userId: number, deviceId: number): Promise<void> {

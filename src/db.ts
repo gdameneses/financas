@@ -1,4 +1,6 @@
 // Typed D1 queries. Keep SQL here so pages and reports stay thin.
+// Every ledger query is scoped to one núcleo (`nucleoId`, always the first argument after `db`):
+// a row from another núcleo is "not found", never a 403 that confirms it exists.
 import { monthRange } from "./lib/dates";
 
 export type Kind = "in" | "out";
@@ -7,6 +9,7 @@ export type Pace = "continuo" | "fixo" | "livre";
 
 export type Category = {
   id: number;
+  nucleo_id: number;
   name: string;
   kind: Kind;
   icon: string;
@@ -18,6 +21,7 @@ export type Category = {
 
 export type Transaction = {
   id: number;
+  nucleo_id: number;
   date: string;
   amount_cents: number;
   kind: Kind;
@@ -42,51 +46,58 @@ export type Budget = { category_id: number; month: string; cap_cents: number };
 const TX_VIEW = `SELECT t.*, c.name AS category_name, c.icon AS category_icon, c.color AS category_color, u.email AS user_email
   FROM transactions t LEFT JOIN categories c ON c.id = t.category_id LEFT JOIN users u ON u.id = t.user_id`;
 
-export async function listCategories(db: D1Database): Promise<Category[]> {
-  const r = await db.prepare("SELECT * FROM categories ORDER BY kind DESC, sort, name").all<Category>();
+export async function listCategories(db: D1Database, nucleoId: number): Promise<Category[]> {
+  const r = await db.prepare("SELECT * FROM categories WHERE nucleo_id = ? ORDER BY kind DESC, sort, name").bind(nucleoId).all<Category>();
   return r.results;
 }
 
-export async function getCategory(db: D1Database, id: number): Promise<Category | null> {
-  return db.prepare("SELECT * FROM categories WHERE id = ?").bind(id).first<Category>();
+export async function getCategory(db: D1Database, nucleoId: number, id: number): Promise<Category | null> {
+  return db.prepare("SELECT * FROM categories WHERE id = ? AND nucleo_id = ?").bind(id, nucleoId).first<Category>();
 }
 
-export async function createCategory(db: D1Database, c: { name: string; kind: Kind; icon: string; color: string; pace: Pace }) {
+export async function createCategory(db: D1Database, nucleoId: number, c: { name: string; kind: Kind; icon: string; color: string; pace: Pace }) {
   const sort = await db
-    .prepare("SELECT COALESCE(MAX(sort), 0) + 1 AS s FROM categories WHERE kind = ?")
-    .bind(c.kind)
+    .prepare("SELECT COALESCE(MAX(sort), 0) + 1 AS s FROM categories WHERE nucleo_id = ? AND kind = ?")
+    .bind(nucleoId, c.kind)
     .first<{ s: number }>();
   const r = await db
-    .prepare("INSERT INTO categories (name, kind, icon, color, is_preset, sort, pace) VALUES (?, ?, ?, ?, 0, ?, ?)")
-    .bind(c.name, c.kind, c.icon, c.color, sort?.s ?? 1, c.pace)
+    .prepare("INSERT INTO categories (nucleo_id, name, kind, icon, color, is_preset, sort, pace) VALUES (?, ?, ?, ?, ?, 0, ?, ?)")
+    .bind(nucleoId, c.name, c.kind, c.icon, c.color, sort?.s ?? 1, c.pace)
     .run();
   return Number(r.meta.last_row_id);
 }
 
-export async function renameCategory(db: D1Database, id: number, name: string, icon: string, color: string, pace: Pace) {
-  await db.prepare("UPDATE categories SET name = ?, icon = ?, color = ?, pace = ? WHERE id = ?").bind(name, icon, color, pace, id).run();
+export async function renameCategory(db: D1Database, nucleoId: number, id: number, name: string, icon: string, color: string, pace: Pace) {
+  await db
+    .prepare("UPDATE categories SET name = ?, icon = ?, color = ?, pace = ? WHERE id = ? AND nucleo_id = ?")
+    .bind(name, icon, color, pace, id, nucleoId)
+    .run();
 }
 
-export async function countCategoryTransactions(db: D1Database, id: number): Promise<number> {
-  const r = await db.prepare("SELECT COUNT(*) AS n FROM transactions WHERE category_id = ?").bind(id).first<{ n: number }>();
+export async function countCategoryTransactions(db: D1Database, nucleoId: number, id: number): Promise<number> {
+  const r = await db
+    .prepare("SELECT COUNT(*) AS n FROM transactions WHERE category_id = ? AND nucleo_id = ?")
+    .bind(id, nucleoId)
+    .first<{ n: number }>();
   return r?.n ?? 0;
 }
 
 /** Deleting a category never deletes money: its transactions become "Sem categoria". */
-export async function deleteCategory(db: D1Database, id: number): Promise<void> {
+export async function deleteCategory(db: D1Database, nucleoId: number, id: number): Promise<void> {
   await db.batch([
-    db.prepare("UPDATE transactions SET category_id = NULL WHERE category_id = ?").bind(id),
-    db.prepare("DELETE FROM budgets WHERE category_id = ?").bind(id),
-    db.prepare("DELETE FROM categories WHERE id = ?").bind(id),
+    db.prepare("UPDATE transactions SET category_id = NULL WHERE category_id = ? AND nucleo_id = ?").bind(id, nucleoId),
+    db.prepare("DELETE FROM budgets WHERE category_id IN (SELECT id FROM categories WHERE id = ? AND nucleo_id = ?)").bind(id, nucleoId),
+    db.prepare("DELETE FROM categories WHERE id = ? AND nucleo_id = ?").bind(id, nucleoId),
   ]);
 }
 
 export async function listTransactions(
   db: D1Database,
+  nucleoId: number,
   opts: { month?: string; categoryId?: number | null; limit?: number } = {},
 ): Promise<TransactionView[]> {
-  const where: string[] = [];
-  const binds: unknown[] = [];
+  const where: string[] = ["t.nucleo_id = ?"];
+  const binds: unknown[] = [nucleoId];
   if (opts.month) {
     const { from, to } = monthRange(opts.month);
     where.push("t.date BETWEEN ? AND ?");
@@ -97,39 +108,39 @@ export async function listTransactions(
     where.push("t.category_id = ?");
     binds.push(opts.categoryId);
   }
-  const sql = `${TX_VIEW} ${where.length ? "WHERE " + where.join(" AND ") : ""}
+  const sql = `${TX_VIEW} WHERE ${where.join(" AND ")}
     ORDER BY t.date DESC, t.id DESC ${opts.limit ? "LIMIT " + Number(opts.limit) : ""}`;
   const r = await db.prepare(sql).bind(...binds).all<TransactionView>();
   return r.results;
 }
 
-export async function getTransaction(db: D1Database, id: number): Promise<TransactionView | null> {
-  return db.prepare(`${TX_VIEW} WHERE t.id = ?`).bind(id).first<TransactionView>();
+export async function getTransaction(db: D1Database, nucleoId: number, id: number): Promise<TransactionView | null> {
+  return db.prepare(`${TX_VIEW} WHERE t.id = ? AND t.nucleo_id = ?`).bind(id, nucleoId).first<TransactionView>();
 }
 
 export type TxInput = { date: string; amount_cents: number; kind: Kind; category_id: number | null; payee: string; note: string };
 
-/** Shared ledger: every row remembers who added it. */
-export async function createTransaction(db: D1Database, t: TxInput, userId: number | null = null): Promise<number> {
+/** Shared ledger inside a núcleo: every row remembers who added it. */
+export async function createTransaction(db: D1Database, nucleoId: number, t: TxInput, userId: number | null = null): Promise<number> {
   const r = await db
-    .prepare("INSERT INTO transactions (date, amount_cents, kind, category_id, payee, note, user_id) VALUES (?, ?, ?, ?, ?, ?, ?)")
-    .bind(t.date, t.amount_cents, t.kind, t.category_id, t.payee, t.note, userId)
+    .prepare("INSERT INTO transactions (nucleo_id, date, amount_cents, kind, category_id, payee, note, user_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)")
+    .bind(nucleoId, t.date, t.amount_cents, t.kind, t.category_id, t.payee, t.note, userId)
     .run();
   return Number(r.meta.last_row_id);
 }
 
-export async function updateTransaction(db: D1Database, id: number, t: TxInput): Promise<void> {
+export async function updateTransaction(db: D1Database, nucleoId: number, id: number, t: TxInput): Promise<void> {
   await db
     .prepare(
       `UPDATE transactions SET date = ?, amount_cents = ?, kind = ?, category_id = ?, payee = ?, note = ?,
-       updated_at = datetime('now') WHERE id = ?`,
+       updated_at = datetime('now') WHERE id = ? AND nucleo_id = ?`,
     )
-    .bind(t.date, t.amount_cents, t.kind, t.category_id, t.payee, t.note, id)
+    .bind(t.date, t.amount_cents, t.kind, t.category_id, t.payee, t.note, id, nucleoId)
     .run();
 }
 
-export async function deleteTransaction(db: D1Database, id: number): Promise<void> {
-  await db.prepare("DELETE FROM transactions WHERE id = ?").bind(id).run();
+export async function deleteTransaction(db: D1Database, nucleoId: number, id: number): Promise<void> {
+  await db.prepare("DELETE FROM transactions WHERE id = ? AND nucleo_id = ?").bind(id, nucleoId).run();
 }
 
 export type CategoryTotal = {
@@ -142,15 +153,15 @@ export type CategoryTotal = {
   count: number;
 };
 
-export async function totalsByCategory(db: D1Database, month: string): Promise<CategoryTotal[]> {
+export async function totalsByCategory(db: D1Database, nucleoId: number, month: string): Promise<CategoryTotal[]> {
   const { from, to } = monthRange(month);
   const r = await db
     .prepare(
       `SELECT t.category_id, c.name, c.icon, c.color, t.kind, SUM(t.amount_cents) AS total, COUNT(*) AS count
        FROM transactions t LEFT JOIN categories c ON c.id = t.category_id
-       WHERE t.date BETWEEN ? AND ? GROUP BY t.category_id, t.kind ORDER BY total DESC`,
+       WHERE t.nucleo_id = ? AND t.date BETWEEN ? AND ? GROUP BY t.category_id, t.kind ORDER BY total DESC`,
     )
-    .bind(from, to)
+    .bind(nucleoId, from, to)
     .all<CategoryTotal>();
   return r.results;
 }
@@ -158,41 +169,48 @@ export async function totalsByCategory(db: D1Database, month: string): Promise<C
 export type DayTotal = { date: string; income: number; expense: number; count: number };
 
 /** Per-day totals in [from, to], inclusive; days without movement are absent. */
-export async function totalsByDay(db: D1Database, from: string, to: string): Promise<DayTotal[]> {
+export async function totalsByDay(db: D1Database, nucleoId: number, from: string, to: string): Promise<DayTotal[]> {
   const r = await db
     .prepare(
       `SELECT date,
          SUM(CASE WHEN kind = 'in' THEN amount_cents ELSE 0 END) AS income,
          SUM(CASE WHEN kind = 'out' THEN amount_cents ELSE 0 END) AS expense,
          COUNT(*) AS count
-       FROM transactions WHERE date BETWEEN ? AND ? GROUP BY date ORDER BY date`,
+       FROM transactions WHERE nucleo_id = ? AND date BETWEEN ? AND ? GROUP BY date ORDER BY date`,
     )
-    .bind(from, to)
+    .bind(nucleoId, from, to)
     .all<DayTotal>();
   return r.results;
 }
 
 export type MonthTotal = { month: string; income: number; expense: number };
 
-export async function totalsByMonth(db: D1Database, fromMonth: string, toMonth: string): Promise<MonthTotal[]> {
+export async function totalsByMonth(db: D1Database, nucleoId: number, fromMonth: string, toMonth: string): Promise<MonthTotal[]> {
   const r = await db
     .prepare(
       `SELECT substr(date, 1, 7) AS month,
          SUM(CASE WHEN kind = 'in' THEN amount_cents ELSE 0 END) AS income,
          SUM(CASE WHEN kind = 'out' THEN amount_cents ELSE 0 END) AS expense
-       FROM transactions WHERE substr(date, 1, 7) BETWEEN ? AND ? GROUP BY month ORDER BY month`,
+       FROM transactions WHERE nucleo_id = ? AND substr(date, 1, 7) BETWEEN ? AND ? GROUP BY month ORDER BY month`,
     )
-    .bind(fromMonth, toMonth)
+    .bind(nucleoId, fromMonth, toMonth)
     .all<MonthTotal>();
   return r.results;
 }
 
-export async function listBudgets(db: D1Database, month: string): Promise<Budget[]> {
-  const r = await db.prepare("SELECT * FROM budgets WHERE month = ?").bind(month).all<Budget>();
+// Budgets hang off categories, so the núcleo scope is a join.
+export async function listBudgets(db: D1Database, nucleoId: number, month: string): Promise<Budget[]> {
+  const r = await db
+    .prepare("SELECT b.* FROM budgets b JOIN categories c ON c.id = b.category_id WHERE c.nucleo_id = ? AND b.month = ?")
+    .bind(nucleoId, month)
+    .all<Budget>();
   return r.results;
 }
 
-export async function setBudget(db: D1Database, categoryId: number, month: string, capCents: number): Promise<void> {
+/** Callers pass a category they already resolved inside the núcleo (see planejamento). */
+export async function setBudget(db: D1Database, nucleoId: number, categoryId: number, month: string, capCents: number): Promise<void> {
+  const owned = await db.prepare("SELECT 1 AS ok FROM categories WHERE id = ? AND nucleo_id = ?").bind(categoryId, nucleoId).first();
+  if (!owned) return;
   if (capCents <= 0) {
     await db.prepare("DELETE FROM budgets WHERE category_id = ? AND month = ?").bind(categoryId, month).run();
     return;
@@ -206,37 +224,48 @@ export async function setBudget(db: D1Database, categoryId: number, month: strin
     .run();
 }
 
-/** Copies the most recent month's budgets into `month` when it has none yet. */
-export async function ensureBudgetsFor(db: D1Database, month: string): Promise<void> {
-  const existing = await db.prepare("SELECT COUNT(*) AS n FROM budgets WHERE month = ?").bind(month).first<{ n: number }>();
+/** Copies the núcleo's most recent month's budgets into `month` when it has none yet. */
+export async function ensureBudgetsFor(db: D1Database, nucleoId: number, month: string): Promise<void> {
+  const existing = await db
+    .prepare("SELECT COUNT(*) AS n FROM budgets b JOIN categories c ON c.id = b.category_id WHERE c.nucleo_id = ? AND b.month = ?")
+    .bind(nucleoId, month)
+    .first<{ n: number }>();
   if ((existing?.n ?? 0) > 0) return;
   const prev = await db
-    .prepare("SELECT month FROM budgets WHERE month < ? ORDER BY month DESC LIMIT 1")
-    .bind(month)
+    .prepare("SELECT b.month FROM budgets b JOIN categories c ON c.id = b.category_id WHERE c.nucleo_id = ? AND b.month < ? ORDER BY b.month DESC LIMIT 1")
+    .bind(nucleoId, month)
     .first<{ month: string }>();
   if (!prev) return;
   await db
-    .prepare("INSERT INTO budgets (category_id, month, cap_cents) SELECT category_id, ?, cap_cents FROM budgets WHERE month = ?")
-    .bind(month, prev.month)
+    .prepare(
+      `INSERT INTO budgets (category_id, month, cap_cents)
+       SELECT b.category_id, ?, b.cap_cents FROM budgets b JOIN categories c ON c.id = b.category_id WHERE c.nucleo_id = ? AND b.month = ?`,
+    )
+    .bind(month, nucleoId, prev.month)
     .run();
 }
 
-export async function listPayees(db: D1Database, limit = 30): Promise<string[]> {
+export async function listPayees(db: D1Database, nucleoId: number, limit = 30): Promise<string[]> {
   const r = await db
-    .prepare("SELECT payee FROM transactions WHERE payee <> '' GROUP BY payee ORDER BY COUNT(*) DESC, MAX(date) DESC LIMIT ?")
-    .bind(limit)
+    .prepare("SELECT payee FROM transactions WHERE nucleo_id = ? AND payee <> '' GROUP BY payee ORDER BY COUNT(*) DESC, MAX(date) DESC LIMIT ?")
+    .bind(nucleoId, limit)
     .all<{ payee: string }>();
   return r.results.map((x) => x.payee);
 }
 
-export async function exportAll(db: D1Database) {
-  const [categories, transactions, budgets] = await Promise.all([
-    db.prepare("SELECT * FROM categories ORDER BY id").all<Category>(),
-    db.prepare("SELECT * FROM transactions ORDER BY date, id").all<Transaction>(),
-    db.prepare("SELECT * FROM budgets ORDER BY month, category_id").all<Budget>(),
+export async function exportAll(db: D1Database, nucleoId: number) {
+  const [nucleo, categories, transactions, budgets] = await Promise.all([
+    db.prepare("SELECT name FROM nucleos WHERE id = ?").bind(nucleoId).first<{ name: string }>(),
+    db.prepare("SELECT * FROM categories WHERE nucleo_id = ? ORDER BY id").bind(nucleoId).all<Category>(),
+    db.prepare("SELECT * FROM transactions WHERE nucleo_id = ? ORDER BY date, id").bind(nucleoId).all<Transaction>(),
+    db
+      .prepare("SELECT b.* FROM budgets b JOIN categories c ON c.id = b.category_id WHERE c.nucleo_id = ? ORDER BY b.month, b.category_id")
+      .bind(nucleoId)
+      .all<Budget>(),
   ]);
   return {
     exported_at: new Date().toISOString(),
+    nucleo: nucleo?.name ?? "",
     currency: "BRL",
     amounts: "integer centavos",
     categories: categories.results,

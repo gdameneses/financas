@@ -13,7 +13,8 @@ npm run dev                      # http://localhost:8787
 
 First visit → `/acesso` → enter an e-mail that is in `ADMIN_EMAILS` + a device name. While no device has
 ever been approved, that request is approved on the spot (and its IP goes on the allowlist); then `/login`
-creates the account. Every later device goes through the code flow (below).
+creates the account and `/comecar` asks you to create your núcleo. Every later device goes through the
+code flow (below).
 
 To switch the IP + device gates off entirely (every browser is approved on first visit, login still
 required), set `LIBERADO=true` in `.dev.vars`. Never in production.
@@ -81,6 +82,29 @@ Any other visitor now gets Cloudflare's login page and never reaches the Worker.
   device must come from a listed IP to go beyond `/acesso` (otherwise `ip_denied`).
 
 Add to home screen (Safari share → "Adicionar à Tela de Início"; Chrome → "Instalar app") for the PWA.
+
+## 4b. Núcleos (tenants)
+
+Access to the app (device approval, above) and access to a ledger are two different things. Every ledger
+(lançamentos, categorias, planejamento, avisos, relatórios) belongs to a **núcleo**; a person belongs to one
+or more núcleos with a role in each, and works on one at a time.
+
+- A newly registered account with no núcleo lands on `/comecar`: *Criar o meu* (becomes its administrador,
+  gets the preset categories) or *Fui convidado* (types an 8-digit invite code).
+- Núcleo admins open *Mais → Núcleo* to rename it, see members, promote/demote/remove them, and generate
+  invite codes (role chosen at creation, 7-day TTL, single use, revocable). Anyone with access to the app
+  can join a núcleo with a code, also from *Mais → Núcleo → Entrar em outro núcleo*.
+- When an **app admin** approves a device in *Pedidos*, the tick *já entrar em “<núcleo>” como membro* puts
+  the account straight into the admin's current núcleo (only offered when they administer it) — one code
+  instead of two for your own household.
+- Roles: núcleo **administrador** = categories, planning caps, reports, export, members, invites. Núcleo
+  **membro** = add/edit/delete transactions, see the plan, note/dismiss alerts, own password. **App admin**
+  (`ADMIN_EMAILS`) = devices, IPs, users, access log; it grants no ledger rights by itself.
+- A núcleo always keeps at least one administrador: the last one cannot leave, be demoted or removed.
+- Switching: *Mais → Núcleo → Trocar de núcleo*. The home hero shows which núcleo you are looking at.
+
+Migration `0005` moved everything that existed before (categories, transactions, budgets, alerts) into
+núcleo 1, named **Casa**, and made every existing user its administrador. Rename it in *Mais → Núcleo*.
 
 ## 5. Reading reports with Claude Code
 

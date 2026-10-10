@@ -22,7 +22,7 @@ function monthParam(raw: string | undefined): string | null {
 }
 
 api.get("/export.json", async (c) => {
-  const data = await exportAll(c.env.DB);
+  const data = await exportAll(c.env.DB, c.get("nucleo").id);
   c.header("content-disposition", `attachment; filename="financas-${data.exported_at.slice(0, 10)}.json"`);
   return c.json(data);
 });
@@ -36,35 +36,35 @@ function splitFile(file: string): { mes: string; ext: "json" | "md" } | null {
 api.get("/report/mensal/:file", async (c) => {
   const f = splitFile(c.req.param("file"));
   if (!f) return c.notFound();
-  const r = await buildMensal(c.env.DB, f.mes);
+  const r = await buildMensal(c.env.DB, c.get("nucleo").id, f.mes);
   return f.ext === "json" ? c.json(r) : md(mensalMarkdown(r), `mensal-${f.mes}`);
 });
 
 api.get("/report/tendencia.json", async (c) => {
   const ate = monthParam(c.req.query("ate"));
   if (!ate) return c.text("ate inválido", 400);
-  return c.json(await buildTendencia(c.env.DB, ate));
+  return c.json(await buildTendencia(c.env.DB, c.get("nucleo").id, ate));
 });
 api.get("/report/tendencia.md", async (c) => {
   const ate = monthParam(c.req.query("ate"));
   if (!ate) return c.text("ate inválido", 400);
-  return md(tendenciaMarkdown(await buildTendencia(c.env.DB, ate)), `tendencia-${ate}`);
+  return md(tendenciaMarkdown(await buildTendencia(c.env.DB, c.get("nucleo").id, ate)), `tendencia-${ate}`);
 });
 
 api.get("/report/recorrentes.json", async (c) => {
   const mes = monthParam(c.req.query("mes"));
   if (!mes) return c.text("mes inválido", 400);
-  return c.json(detectRecorrentes(await listTransactions(c.env.DB), mes));
+  return c.json(detectRecorrentes(await listTransactions(c.env.DB, c.get("nucleo").id), mes));
 });
 api.get("/report/recorrentes.md", async (c) => {
   const mes = monthParam(c.req.query("mes"));
   if (!mes) return c.text("mes inválido", 400);
-  return md(recorrentesMarkdown(detectRecorrentes(await listTransactions(c.env.DB), mes)), `recorrentes-${mes}`);
+  return md(recorrentesMarkdown(detectRecorrentes(await listTransactions(c.env.DB, c.get("nucleo").id), mes)), `recorrentes-${mes}`);
 });
 
 api.get("/report/orcamento/:file", async (c) => {
   const f = splitFile(c.req.param("file"));
   if (!f) return c.notFound();
-  const r = await buildOrcamento(c.env.DB, f.mes);
+  const r = await buildOrcamento(c.env.DB, c.get("nucleo").id, f.mes);
   return f.ext === "json" ? c.json(r) : md(orcamentoMarkdown(r), `orcamento-${f.mes}`);
 });

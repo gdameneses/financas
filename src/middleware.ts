@@ -2,6 +2,7 @@ import type { MiddlewareHandler } from "hono";
 import type { AppEnv } from "./env";
 import { allowedCidrs, autoApprove, deviceTokenFromRequest, findDevice, isSecure, touchDevice } from "./auth/device";
 import { findSession, sessionTokenFromRequest } from "./auth/session";
+import { currentNucleo } from "./nucleos";
 import { clientIp, ipAllowed } from "./lib/ip";
 import { logAccess, type Outcome } from "./lib/accesslog";
 
@@ -91,9 +92,33 @@ export const requireSession: MiddlewareHandler<AppEnv> = async (c, next) => {
   await next();
 };
 
-/** Layer 4: admin-only routes. */
-export const requireAdmin: MiddlewareHandler<AppEnv> = async (c, next) => {
-  if (!c.get("user").admin) {
+/**
+ * Layer 4: the núcleo this request works on. A user who belongs to none yet is sent to /comecar
+ * (create one or type an invite). Pages that work without a núcleo (Mais, senha, núcleos, acessos)
+ * are mounted before this.
+ */
+export const requireNucleo: MiddlewareHandler<AppEnv> = async (c, next) => {
+  const n = await currentNucleo(c.env.DB, c.get("user").id);
+  if (!n) {
+    if (c.req.path.startsWith("/api/")) return c.text("Sem núcleo", 403);
+    return c.redirect("/comecar");
+  }
+  c.set("nucleo", n);
+  await next();
+};
+
+/** Núcleo admins only: categories, planning caps, reports, members, invites. */
+export const requireNucleoAdmin: MiddlewareHandler<AppEnv> = async (c, next) => {
+  if (c.get("nucleo")?.role !== "admin") {
+    c.set("outcome", "forbidden");
+    return c.text("Só para administradores do núcleo", 403);
+  }
+  await next();
+};
+
+/** App admins only (ADMIN_EMAILS): devices, IPs, users, access log. */
+export const requireAppAdmin: MiddlewareHandler<AppEnv> = async (c, next) => {
+  if (!c.get("user").appAdmin) {
     c.set("outcome", "forbidden");
     return c.text("Só para administradores", 403);
   }

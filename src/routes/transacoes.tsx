@@ -137,7 +137,8 @@ function parseTxForm(form: Record<string, unknown>, cats: Category[]): { ok: tru
 }
 
 transacoes.get("/nova", async (c) => {
-  const [cats, payees] = await Promise.all([listCategories(c.env.DB), listPayees(c.env.DB)]);
+  const n = c.get("nucleo").id;
+  const [cats, payees] = await Promise.all([listCategories(c.env.DB, n), listPayees(c.env.DB, n)]);
   return c.html(
     <Layout title="Novo lançamento" bare>
       <h1>Novo lançamento</h1>
@@ -147,7 +148,8 @@ transacoes.get("/nova", async (c) => {
 });
 
 transacoes.post("/nova", async (c) => {
-  const [cats, payees, form] = await Promise.all([listCategories(c.env.DB), listPayees(c.env.DB), c.req.parseBody()]);
+  const n = c.get("nucleo").id;
+  const [cats, payees, form] = await Promise.all([listCategories(c.env.DB, n), listPayees(c.env.DB, n), c.req.parseBody()]);
   const parsed = parseTxForm(form, cats);
   if (!parsed.ok) {
     return c.html(
@@ -158,7 +160,7 @@ transacoes.post("/nova", async (c) => {
       400,
     );
   }
-  await createTransaction(c.env.DB, parsed.tx, c.get("user").id);
+  await createTransaction(c.env.DB, n, parsed.tx, c.get("user").id);
   return c.redirect(`/?mes=${parsed.tx.date.slice(0, 7)}&ok=${encodeURIComponent("Lançamento adicionado")}`);
 });
 
@@ -167,7 +169,8 @@ transacoes.get("/transacoes", async (c) => {
   const month = q && isMonth(q) ? q : currentMonth();
   const catQ = c.req.query("cat");
   const categoryId = catQ === "none" ? null : catQ ? Number(catQ) : undefined;
-  const [txs, cats] = await Promise.all([listTransactions(c.env.DB, { month, categoryId }), listCategories(c.env.DB)]);
+  const n = c.get("nucleo").id;
+  const [txs, cats] = await Promise.all([listTransactions(c.env.DB, n, { month, categoryId }), listCategories(c.env.DB, n)]);
   const base = catQ ? `/transacoes?cat=${catQ}` : "/transacoes";
   return c.html(
     <Layout title="Lançamentos" active="tx" toast={c.req.query("ok") ?? undefined}>
@@ -194,7 +197,8 @@ transacoes.get("/transacoes", async (c) => {
 transacoes.get("/transacoes/:id", async (c) => {
   const id = parseId(c.req.param("id"));
   if (id === null) return c.notFound();
-  const [tx, cats, payees] = await Promise.all([getTransaction(c.env.DB, id), listCategories(c.env.DB), listPayees(c.env.DB)]);
+  const n = c.get("nucleo").id;
+  const [tx, cats, payees] = await Promise.all([getTransaction(c.env.DB, n, id), listCategories(c.env.DB, n), listPayees(c.env.DB, n)]);
   if (!tx) return c.notFound();
   const back = `/transacoes?mes=${tx.date.slice(0, 7)}`;
   return c.html(
@@ -213,10 +217,11 @@ transacoes.get("/transacoes/:id", async (c) => {
 transacoes.post("/transacoes/:id", async (c) => {
   const id = parseId(c.req.param("id"));
   if (id === null) return c.notFound();
+  const n = c.get("nucleo").id;
   const [tx, cats, payees, form] = await Promise.all([
-    getTransaction(c.env.DB, id),
-    listCategories(c.env.DB),
-    listPayees(c.env.DB),
+    getTransaction(c.env.DB, n, id),
+    listCategories(c.env.DB, n),
+    listPayees(c.env.DB, n),
     c.req.parseBody(),
   ]);
   if (!tx) return c.notFound();
@@ -230,15 +235,16 @@ transacoes.post("/transacoes/:id", async (c) => {
       400,
     );
   }
-  await updateTransaction(c.env.DB, id, parsed.tx);
+  await updateTransaction(c.env.DB, n, id, parsed.tx);
   return c.redirect(`/transacoes?mes=${parsed.tx.date.slice(0, 7)}&ok=${encodeURIComponent("Lançamento salvo")}`);
 });
 
 transacoes.post("/transacoes/:id/excluir", async (c) => {
   const id = parseId(c.req.param("id"));
   if (id === null) return c.notFound();
-  const tx = await getTransaction(c.env.DB, id);
+  const n = c.get("nucleo").id;
+  const tx = await getTransaction(c.env.DB, n, id);
   if (!tx) return c.notFound();
-  await deleteTransaction(c.env.DB, id);
+  await deleteTransaction(c.env.DB, n, id);
   return c.redirect(`/transacoes?mes=${tx.date.slice(0, 7)}&ok=${encodeURIComponent("Lançamento excluído")}`);
 });

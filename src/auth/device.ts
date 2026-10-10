@@ -12,7 +12,7 @@ const CODE_MAX_ATTEMPTS = 5;
 const REQUESTS_PER_IP_PER_HOUR = 3; // IPv6 counted per /64
 const REQUESTS_GLOBAL_PER_HOUR = 20; // caps e-mail + D1 write amplification from anyone
 
-const DEVICE_COLS = "id, name, user_agent, status, requested_email, requested_ip, created_at, last_seen_at, approved_by, approved_at, revoked_at";
+const DEVICE_COLS = "id, name, user_agent, status, requested_email, requested_ip, created_at, last_seen_at, approved_by, approved_at, revoked_at, join_nucleo_id";
 
 export async function findDevice(db: D1Database, token: string | undefined): Promise<Device | null> {
   if (!token) return null;
@@ -63,11 +63,12 @@ export async function isBootstrap(c: Context<AppEnv>, email: string): Promise<bo
   return !!r && r.d === 0 && r.u === 0;
 }
 
-export async function approveDevice(db: D1Database, deviceId: number, byUserId: number | null, allowIp: boolean): Promise<void> {
+/** `joinNucleoId`: the account registered on this device joins that núcleo as a member right away. */
+export async function approveDevice(db: D1Database, deviceId: number, byUserId: number | null, allowIp: boolean, joinNucleoId: number | null = null): Promise<void> {
   const d = await getDevice(db, deviceId);
   if (!d || d.status !== "pending") return; // only pending requests can be approved
   const stmts = [
-    db.prepare("UPDATE devices SET status = 'approved', approved_by = ?, approved_at = datetime('now'), revoked_at = NULL WHERE id = ?").bind(byUserId, deviceId),
+    db.prepare("UPDATE devices SET status = 'approved', approved_by = ?, approved_at = datetime('now'), revoked_at = NULL, join_nucleo_id = ? WHERE id = ?").bind(byUserId, joinNucleoId, deviceId),
     db.prepare("UPDATE access_codes SET used_at = datetime('now') WHERE device_id = ? AND used_at IS NULL").bind(deviceId),
   ];
   if (allowIp && d.requested_ip) {

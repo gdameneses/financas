@@ -8,6 +8,7 @@ import { parseId } from "../middleware";
 import { banUser, unbanUser } from "../auth/session";
 import { parseCidr } from "../lib/ip";
 import { adminEmails } from "../lib/email";
+import { currentNucleo } from "../nucleos";
 
 export const admin = new Hono<AppEnv>();
 
@@ -37,6 +38,9 @@ admin.get("/", async (c) => {
   const tab: Tab = (TABS as readonly string[]).includes(tabQ ?? "") ? (tabQ as Tab) : "pedidos";
   const me = c.get("user");
   const myIp = c.get("ip");
+  // Approving can drop the new account straight into the admin's current núcleo (when they administer it).
+  const myNucleo = await currentNucleo(db, me.id);
+  const joinable = myNucleo && myNucleo.role === "admin" ? myNucleo : null;
   const pendingCount = (await db.prepare("SELECT COUNT(*) AS n FROM devices WHERE status = 'pending'").first<{ n: number }>())?.n ?? 0;
 
   const admins = adminEmails(c.env);
@@ -79,6 +83,11 @@ admin.get("/", async (c) => {
                   <label class="check">
                     <input type="checkbox" name="allow_ip" value="1" checked /> liberar IP {r.ip}
                   </label>
+                  {joinable ? (
+                    <label class="check">
+                      <input type="checkbox" name="join_nucleo" value="1" /> já entrar em “{joinable.name}” como membro
+                    </label>
+                  ) : null}
                   {admins.includes(r.email) ? (
                     <label class="check">
                       <input type="checkbox" name="confirm_admin" value="1" /> confirmo que é {r.email}
@@ -282,8 +291,13 @@ admin.post("/aparelhos/:id/aprovar", async (c) => {
   if (adminEmails(c.env).includes(d.requested_email) && form.confirm_admin !== "1") {
     return c.redirect(back("pedidos", "Pedido com e-mail de administrador: marque a confirmação para aprovar"));
   }
-  await approveDevice(c.env.DB, id, c.get("user").id, form.allow_ip === "1");
-  return c.redirect(back("pedidos", "Aparelho aprovado"));
+  let join: number | null = null;
+  if (form.join_nucleo === "1") {
+    const mine = await currentNucleo(c.env.DB, c.get("user").id);
+    if (mine && mine.role === "admin") join = mine.id;
+  }
+  await approveDevice(c.env.DB, id, c.get("user").id, form.allow_ip === "1", join);
+  return c.redirect(back("pedidos", join ? "Aparelho aprovado; a conta entra no seu núcleo" : "Aparelho aprovado"));
 });
 admin.post("/aparelhos/:id/negar", async (c) => {
   const id = parseId(c.req.param("id"));

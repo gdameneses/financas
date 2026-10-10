@@ -15,17 +15,18 @@ home.get("/", async (c) => {
   const q = c.req.query("mes");
   const month = q && isMonth(q) ? q : currentMonth();
   const isCurrent = month === currentMonth();
-  const admin = c.get("user").admin;
+  const nucleo = c.get("nucleo");
+  const admin = nucleo.role === "admin";
   const db = c.env.DB;
-  if (isCurrent) await syncAlerts(db);
+  if (isCurrent) await syncAlerts(db, nucleo.id);
   const today = todayISO();
   const weekFrom = addDays(today, -6);
   const [totals, txs, plan, alerts, days] = await Promise.all([
-    totalsByCategory(db, month),
-    listTransactions(db, { month, limit: admin ? 8 : 20 }),
-    buildOrcamento(db, month),
-    activeAlerts(db, month),
-    isCurrent ? totalsByDay(db, weekFrom, today) : Promise.resolve([]),
+    totalsByCategory(db, nucleo.id, month),
+    listTransactions(db, nucleo.id, { month, limit: admin ? 8 : 20 }),
+    buildOrcamento(db, nucleo.id, month),
+    activeAlerts(db, nucleo.id, month),
+    isCurrent ? totalsByDay(db, nucleo.id, weekFrom, today) : Promise.resolve([]),
   ]);
   const income = totals.filter((t) => t.kind === "in").reduce((a, t) => a + t.total, 0);
   const expense = totals.filter((t) => t.kind === "out").reduce((a, t) => a + t.total, 0);
@@ -59,7 +60,7 @@ home.get("/", async (c) => {
     <Layout title="Início" active="home" toast={c.req.query("ok") ?? undefined}>
       <MonthNav month={month} base="/" />
       <section class="hero">
-        <small>Saldo do mês</small>
+        <small>Saldo do mês · {nucleo.name}</small>
         <h1 class={income - expense >= 0 ? "pos" : "neg"}>{formatBRL(income - expense)}</h1>
         <div class="inout">
           <span class="in">+ {formatBRL(income)}</span>
@@ -177,11 +178,11 @@ home.get("/", async (c) => {
   );
 });
 
-// Alerts are household-wide: anyone logged in can note or dismiss.
+// Alerts are núcleo-wide: any member can note or dismiss.
 home.post("/avisos/:id/ignorar", async (c) => {
   const id = parseId(c.req.param("id"));
   if (id === null) return c.notFound();
-  await dismissAlert(c.env.DB, id, c.get("user").id);
+  await dismissAlert(c.env.DB, c.get("nucleo").id, id, c.get("user").id);
   return c.redirect("/");
 });
 
@@ -190,6 +191,6 @@ home.post("/avisos/:id/anotar", async (c) => {
   if (id === null) return c.notFound();
   const form = await c.req.parseBody();
   const note = String(form.note ?? "").trim().slice(0, 200);
-  if (note) await noteAlert(c.env.DB, id, c.get("user").id, note);
+  if (note) await noteAlert(c.env.DB, c.get("nucleo").id, id, c.get("user").id, note);
   return c.redirect("/");
 });

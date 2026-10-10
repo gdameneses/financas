@@ -10,7 +10,7 @@ export const ICONS = [
   "tag", "coffee", "airplane", "device-mobile", "plug", "drop", "lightning", "bank", "credit-card", "heart",
   "hammer", "users", "question",
   // chrome
-  "plus", "caret-left", "caret-right", "shield-check", "sign-out", "download-simple", "trash", "check", "x",
+  "plus", "caret-left", "caret-right", "shield-check", "sign-out", "download-simple", "trash", "check", "x", "lock-key", "users-three",
 ];
 
 const parts = [];

@@ -194,6 +194,9 @@ input.code { font-size: var(--fs-xl) !important; letter-spacing: .2em; text-alig
 .codebox small { display: block; color: var(--fg-dim); font-size: var(--fs-xs); }
 .codebox b { font-size: var(--fs-xl); letter-spacing: .18em; font-weight: 500; }
 form.inline { display: flex; flex-direction: column; gap: 8px; flex: 1; }
+.btn:disabled { opacity: .4; pointer-events: none; }
+.devlist .row { gap: 8px; }
+.devlist .row form.inline { flex: none; }
 .check { flex-direction: row; align-items: center; gap: 8px; margin: 0; font-size: var(--fs-sm); }
 .check input { width: 16px; height: 16px; margin: 0; }
 .ipform { align-items: flex-end; flex-wrap: wrap; }

@@ -6,10 +6,10 @@ import { buildTendencia } from "../src/reports/tendencia";
 import { detectRecorrentes } from "../src/reports/recorrentes";
 import { buildOrcamento } from "../src/reports/orcamento";
 import { parseBRL, formatBRL } from "../src/lib/money";
-import { resetDb } from "./helpers";
+import { categoryId, fixture, resetDb } from "./helpers";
 
 const tx = (date: string, amount_cents: number, payee: string, kind: "in" | "out" = "out", category_id: number | null = null): Transaction => ({
-  id: 0, date, amount_cents, kind, category_id, payee, note: "", created_at: "", updated_at: "",
+  id: 0, nucleo_id: 1, date, amount_cents, kind, category_id, payee, note: "", created_at: "", updated_at: "",
 });
 
 describe("money", () => {
@@ -57,19 +57,24 @@ describe("recorrentes", () => {
 describe("db-backed reports", () => {
   let mercado: number;
   let salario: number;
+  let nid: number;
   beforeAll(async () => {
     await resetDb();
-    mercado =(await env.DB.prepare("SELECT id FROM categories WHERE name = 'Mercado'").first<{ id: number }>())!.id;
-    salario = (await env.DB.prepare("SELECT id FROM categories WHERE name = 'Salário'").first<{ id: number }>())!.id;
-    await createTransaction(env.DB, { date: "2026-09-10", amount_cents: 50000, kind: "out", category_id: mercado, payee: "A", note: "" });
-    await createTransaction(env.DB, { date: "2026-10-03", amount_cents: 30000, kind: "out", category_id: mercado, payee: "A", note: "" });
-    await createTransaction(env.DB, { date: "2026-10-04", amount_cents: 20000, kind: "out", category_id: null, payee: "B", note: "" });
-    await createTransaction(env.DB, { date: "2026-10-01", amount_cents: 500000, kind: "in", category_id: salario, payee: "", note: "" });
-    await setBudget(env.DB, mercado, "2026-10", 40000);
+    ({ nid } = await fixture());
+    mercado = await categoryId(nid, "Mercado");
+    salario = await categoryId(nid, "Salário");
+    await createTransaction(env.DB, nid, { date: "2026-09-10", amount_cents: 50000, kind: "out", category_id: mercado, payee: "A", note: "" });
+    await createTransaction(env.DB, nid, { date: "2026-10-03", amount_cents: 30000, kind: "out", category_id: mercado, payee: "A", note: "" });
+    await createTransaction(env.DB, nid, { date: "2026-10-04", amount_cents: 20000, kind: "out", category_id: null, payee: "B", note: "" });
+    await createTransaction(env.DB, nid, { date: "2026-10-01", amount_cents: 500000, kind: "in", category_id: salario, payee: "", note: "" });
+    await setBudget(env.DB, nid, mercado, "2026-10", 40000);
+    // Another núcleo with a big expense in the same month: must not leak into any report below.
+    const other = await fixture("other@example.com", "Outro");
+    await createTransaction(env.DB, other.nid, { date: "2026-10-02", amount_cents: 9_999_900, kind: "out", category_id: null, payee: "Z", note: "" });
   });
 
   it("mensal totals, shares and delta vs previous month", async () => {
-    const r = await buildMensal(env.DB, "2026-10");
+    const r = await buildMensal(env.DB, nid, "2026-10");
     expect(r.income).toBe(500000);
     expect(r.expense).toBe(50000);
     expect(r.net).toBe(450000);
@@ -82,7 +87,7 @@ describe("db-backed reports", () => {
   });
 
   it("tendencia pads 12 months and averages only active ones", async () => {
-    const r = await buildTendencia(env.DB, "2026-10");
+    const r = await buildTendencia(env.DB, nid, "2026-10");
     expect(r.rows).toHaveLength(12);
     expect(r.rows[0].month).toBe("2025-11");
     expect(r.rows[11].net).toBe(450000);
@@ -90,14 +95,14 @@ describe("db-backed reports", () => {
   });
 
   it("orcamento projects spend and lists unbudgeted categories", async () => {
-    const r = await buildOrcamento(env.DB, "2026-10", new Date("2026-10-10T15:00:00Z"));
+    const r = await buildOrcamento(env.DB, nid, "2026-10", new Date("2026-10-10T15:00:00Z"));
     const m = r.lines.find((l) => l.category_id === mercado)!;
     expect(m.spent).toBe(30000);
     expect(m.used_pct).toBe(75);
     expect(m.projected).toBe(Math.round(30000 * (31 / 10)));
     expect(m.over).toBe(false);
     // Past month: projection equals spend.
-    const past = await buildOrcamento(env.DB, "2026-09", new Date("2026-10-10T15:00:00Z"));
+    const past = await buildOrcamento(env.DB, nid, "2026-09", new Date("2026-10-10T15:00:00Z"));
     expect(past.unbudgeted[0]).toMatchObject({ name: "Mercado", icon: "shopping-cart", spent: 50000 });
   });
 });

@@ -1,6 +1,6 @@
 import { Hono } from "hono";
 import type { AppEnv } from "./env";
-import { accessLog, requireAccess, requireAdmin, requireIpAndDevice, requireSession } from "./middleware";
+import { accessLog, requireAccess, requireIpAndDevice, requireNucleo, requireNucleoAdmin, requireSession } from "./middleware";
 import { gates } from "./routes/gates";
 import { app as pages } from "./routes/pages";
 import { api } from "./routes/api";
@@ -23,8 +23,8 @@ app.route("/", gates);
 app.use("*", requireSession);
 app.route("/", pages);
 
-// Reports and export are admin-only.
-app.use("/api/*", requireAdmin);
+// Reports and export belong to the current núcleo and are for its admins.
+app.use("/api/*", requireNucleo, requireNucleoAdmin);
 app.route("/api", api);
 
 app.notFound((c) => c.text("Não encontrado", 404));

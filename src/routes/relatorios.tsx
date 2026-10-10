@@ -45,10 +45,11 @@ relatorios.get("/", async (c) => {
   const tabQ = c.req.query("tab");
   const tab: Tab = (TABS as readonly string[]).includes(tabQ ?? "") ? (tabQ as Tab) : "mensal";
   const db = c.env.DB;
+  const n = c.get("nucleo").id;
 
   let body;
   if (tab === "mensal") {
-    const r = await buildMensal(db, month);
+    const r = await buildMensal(db, n, month);
     body = (
       <>
         <section class="hero small">
@@ -135,7 +136,7 @@ relatorios.get("/", async (c) => {
       </>
     );
   } else if (tab === "tendencia") {
-    const r = await buildTendencia(db, month);
+    const r = await buildTendencia(db, n, month);
     body = (
       <>
         <section class="hero small">
@@ -181,7 +182,7 @@ relatorios.get("/", async (c) => {
       </>
     );
   } else if (tab === "recorrentes") {
-    const txs = await listTransactions(db);
+    const txs = await listTransactions(db, n);
     const r = detectRecorrentes(txs, month);
     body = (
       <>
@@ -222,7 +223,7 @@ relatorios.get("/", async (c) => {
       </>
     );
   } else {
-    const r = await buildOrcamento(db, month);
+    const r = await buildOrcamento(db, n, month);
     body = (
       <>
         <section class="hero small">

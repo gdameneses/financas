@@ -32,8 +32,8 @@ export type OrcamentoReport = {
   unbudgeted: { category_id: number; name: string; icon: string; spent: number }[];
 };
 
-export async function buildOrcamento(db: D1Database, month: string, now = new Date()): Promise<OrcamentoReport> {
-  const [budgets, cats, totals] = await Promise.all([listBudgets(db, month), listCategories(db), totalsByCategory(db, month)]);
+export async function buildOrcamento(db: D1Database, nucleoId: number, month: string, now = new Date()): Promise<OrcamentoReport> {
+  const [budgets, cats, totals] = await Promise.all([listBudgets(db, nucleoId, month), listCategories(db, nucleoId), totalsByCategory(db, nucleoId, month)]);
   const dim = daysInMonth(month);
   const cur = currentMonth(now);
   const elapsed = month < cur ? dim : month > cur ? 0 : Number(todayISO(now).slice(8, 10));

@@ -1,48 +1,24 @@
 import { env } from "cloudflare:test";
 import { describe, it, expect, beforeEach } from "vitest";
-import app from "../src/index";
-import { resetDb } from "./helpers";
+import { Browser, latestInvite, nucleoIdByName, resetDb } from "./helpers";
 
 beforeEach(resetDb);
 
-const ORIGIN = "https://finance.test";
 const ADMIN = "admin@example.com";
 const IP_HOME = "203.0.113.10";
 const IP_OTHER = "198.51.100.7";
 
-// Cookie jar + fixed client IP: behaves like one browser on one network.
-class Browser {
-  cookies = new Map<string, string>();
-  constructor(public ip: string) {}
-  async fetch(path: string, init: RequestInit = {}, extraEnv: Partial<typeof env> = {}) {
-    const headers = new Headers(init.headers);
-    headers.set("cf-connecting-ip", this.ip);
-    headers.set("user-agent", "test/1.0");
-    if (this.cookies.size) headers.set("cookie", [...this.cookies].map(([k, v]) => `${k}=${v}`).join("; "));
-    const res = await app.request(ORIGIN + path, { ...init, headers, redirect: "manual" }, { ...env, ...extraEnv });
-    for (const sc of res.headers.getSetCookie()) {
-      const [pair, ...attrs] = sc.split(";");
-      const [k, v] = pair.split("=");
-      if (attrs.some((a) => /max-age=0/i.test(a))) this.cookies.delete(k.trim());
-      else this.cookies.set(k.trim(), v);
-    }
-    return res;
-  }
-  form(path: string, data: Record<string, string>, extraEnv: Partial<typeof env> = {}) {
-    return this.fetch(
-      path,
-      { method: "POST", headers: { "content-type": "application/x-www-form-urlencoded" }, body: new URLSearchParams(data).toString() },
-      extraEnv,
-    );
-  }
-}
-
+/** First admin: bootstrap device, register, and (new) create the household núcleo. */
 async function bootstrapAdmin(ip = IP_HOME): Promise<Browser> {
   const b = new Browser(ip);
   let r = await b.form("/acesso", { op: "request", email: ADMIN, name: "laptop" });
   expect(r.status).toBe(302);
   expect(r.headers.get("location")).toBe("/login");
   r = await b.form("/login", { email: ADMIN, password: "senha-forte-123" });
+  expect(r.status).toBe(302);
+  // No núcleo yet: the app insists on /comecar until one exists.
+  expect((await b.fetch("/")).headers.get("location")).toBe("/comecar");
+  r = await b.form("/nucleos", { name: "Casa" });
   expect(r.status).toBe(302);
   return b;
 }
@@ -116,6 +92,15 @@ describe("access gates", () => {
     expect(r.status).toBe(401);
     r = await phone.form("/login", { email: "nic@example.com", password: "senha-forte-123" });
     expect(r.headers.get("location")).toBe("/");
+    // Access to the app is not access to a ledger: without a núcleo the person is sent to /comecar.
+    expect((await phone.fetch("/")).headers.get("location")).toBe("/comecar");
+    expect((await phone.fetch("/comecar")).status).toBe(200);
+
+    // The admin generates an invite for their núcleo; the code joins it.
+    await admin.form("/nucleo/convites", { role: "membro" });
+    const invite = await latestInvite(await nucleoIdByName("Casa"));
+    r = await phone.form("/nucleos/entrar", { code: `${invite.slice(0, 4)} ${invite.slice(4)}` });
+    expect(r.headers.get("location")).toContain("/?ok=");
     expect((await phone.fetch("/")).status).toBe(200);
 
     const ips = await env.DB.prepare("SELECT cidr FROM allowed_ips ORDER BY id").all<{ cidr: string }>();
@@ -140,23 +125,33 @@ describe("access gates", () => {
     expect((await phone.form("/acesso", { op: "request", email: "a@example.com", name: "x" })).status).toBe(429);
   });
 
-  it("admin can approve or deny from the app; non-admins cannot reach /acessos", async () => {
+  it("admin can approve straight into their núcleo; members cannot reach admin pages", async () => {
     const admin = await bootstrapAdmin();
     const phone = new Browser(IP_OTHER);
     await phone.form("/acesso", { op: "request", email: "nic@example.com", name: "celular" });
     const id = (await env.DB.prepare("SELECT id FROM devices WHERE name = 'celular'").first<{ id: number }>())!.id;
-    let r = await admin.form(`/acessos/aparelhos/${id}/aprovar`, { allow_ip: "1" });
+    // The Pedidos page offers "já entrar em “Casa”" because the admin administers a núcleo.
+    expect(await (await admin.fetch("/acessos?tab=pedidos")).text()).toContain("já entrar em “Casa”");
+    let r = await admin.form(`/acessos/aparelhos/${id}/aprovar`, { allow_ip: "1", join_nucleo: "1" });
     expect(r.status).toBe(302);
     r = await phone.fetch("/login");
     expect(r.status).toBe(200);
     await phone.form("/login", { email: "nic@example.com", password: "senha-forte-123" });
+    // Registered straight into Casa as a member: the ledger opens, admin pages do not.
+    expect((await phone.fetch("/")).status).toBe(200);
+    expect(await (await phone.fetch("/")).text()).toContain("Casa");
     r = await phone.fetch("/acessos");
     expect(r.status).toBe(403);
     r = await phone.fetch("/categorias");
     expect(r.status).toBe(403);
+    r = await phone.fetch("/relatorios");
+    expect(r.status).toBe(403);
     r = await phone.fetch("/api/export.json");
     expect(r.status).toBe(403);
+    r = await phone.form("/planejamento", { cap_1: "10" });
+    expect(r.status).toBe(403);
     expect((await phone.fetch("/nova")).status).toBe(200);
+    expect((await phone.fetch("/planejamento")).status).toBe(200);
   });
 
   it("banning a user kills sessions and devices immediately", async () => {
@@ -165,7 +160,7 @@ describe("access gates", () => {
     await phone.form("/acesso", { op: "request", email: "nic@example.com", name: "celular" });
     await phone.form("/acesso", { op: "code", code: await pendingCode() });
     await phone.form("/login", { email: "nic@example.com", password: "senha-forte-123" });
-    expect((await phone.fetch("/")).status).toBe(200);
+    expect((await phone.fetch("/")).headers.get("location")).toBe("/comecar");
     const uid = (await env.DB.prepare("SELECT id FROM users WHERE email = 'nic@example.com'").first<{ id: number }>())!.id;
     await admin.form(`/acessos/usuarios/${uid}/bloquear`, {});
     const r = await phone.fetch("/");
@@ -178,7 +173,7 @@ describe("access gates", () => {
   it("every request is logged with ip, outcome and who", async () => {
     const admin = await bootstrapAdmin();
     await admin.fetch("/");
-    const rows = (await env.DB.prepare("SELECT ip, outcome, user_id, path FROM access_log ORDER BY id").all<{ ip: string; outcome: string; user_id: number | null; path: string }>()).results;
+    const rows = (await env.DB.prepare("SELECT ip, outcome, user_id, path FROM access_log WHERE path <> '/comecar' ORDER BY id").all<{ ip: string; outcome: string; user_id: number | null; path: string }>()).results;
     expect(rows[0]).toMatchObject({ ip: IP_HOME, outcome: "device_unknown", path: "/acesso" });
     expect(rows[rows.length - 1]).toMatchObject({ ip: IP_HOME, outcome: "ok", path: "/" });
     expect(rows[rows.length - 1].user_id).not.toBeNull();
@@ -301,8 +296,9 @@ describe("ledger", () => {
     await admin.form("/nova", { kind: "out", amount: "123,45", date: "2026-10-05", category_id: "" });
     const r = await admin.fetch("/api/export.json");
     expect(r.status).toBe(200);
-    const body = (await r.json()) as { amounts: string; transactions: { amount_cents: number }[] };
+    const body = (await r.json()) as { amounts: string; nucleo: string; transactions: { amount_cents: number }[] };
     expect(body.amounts).toBe("integer centavos");
+    expect(body.nucleo).toBe("Casa");
     expect(body.transactions.some((t) => t.amount_cents === 12345)).toBe(true);
   });
 });
