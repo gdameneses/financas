@@ -61,24 +61,31 @@ export async function destroySession(c: Context<AppEnv>, sessionId: number): Pro
   deleteCookie(c, SESSION_COOKIE, { path: "/" });
 }
 
+/** After a password change: every other session of this user is gone. */
+export async function destroyOtherSessions(db: D1Database, userId: number, keepSessionId: number): Promise<void> {
+  await db.prepare("DELETE FROM sessions WHERE user_id = ? AND id <> ?").bind(userId, keepSessionId).run();
+}
+
 export function sessionTokenFromRequest(c: Context<AppEnv>): string | undefined {
   return getCookie(c, SESSION_COOKIE);
 }
 
-export async function loginRateLimited(db: D1Database, deviceId: number): Promise<boolean> {
+// Failed password checks are counted per e-mail (login and password change alike), so a
+// successful login as someone else on the same device cannot reset the counter.
+export async function loginRateLimited(db: D1Database, email: string): Promise<boolean> {
   const row = await db
-    .prepare("SELECT COUNT(*) AS n FROM login_attempts WHERE device_id = ? AND at > datetime('now', ?)")
-    .bind(deviceId, `-${LOGIN_WINDOW_MIN} minutes`)
+    .prepare("SELECT COUNT(*) AS n FROM login_attempts WHERE email = ? AND at > datetime('now', ?)")
+    .bind(email, `-${LOGIN_WINDOW_MIN} minutes`)
     .first<{ n: number }>();
   return (row?.n ?? 0) >= LOGIN_MAX_ATTEMPTS;
 }
 
-export async function recordLoginAttempt(db: D1Database, deviceId: number): Promise<void> {
-  await db.prepare("INSERT INTO login_attempts (device_id) VALUES (?)").bind(deviceId).run();
+export async function recordLoginAttempt(db: D1Database, email: string): Promise<void> {
+  await db.prepare("INSERT INTO login_attempts (email) VALUES (?)").bind(email).run();
 }
 
-export async function clearLoginAttempts(db: D1Database, deviceId: number): Promise<void> {
-  await db.prepare("DELETE FROM login_attempts WHERE device_id = ?").bind(deviceId).run();
+export async function clearLoginAttempts(db: D1Database, email: string): Promise<void> {
+  await db.prepare("DELETE FROM login_attempts WHERE email = ?").bind(email).run();
 }
 
 /** Ban: sessions die now, devices approved for that e-mail are revoked. */

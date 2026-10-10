@@ -1,11 +1,21 @@
 // Client IP extraction and CIDR matching (IPv4 + IPv6), no dependencies.
 
+/**
+ * Only `cf-connecting-ip` is trusted: Cloudflare sets it on every request and strips a
+ * client-supplied one. Outside Cloudflare (wrangler dev, ngrok) there is no trustworthy
+ * source, so everything is 127.0.0.1; use LIBERADO=true for demos through a tunnel.
+ */
 export function clientIp(req: Request): string {
-  const cf = req.headers.get("cf-connecting-ip");
-  if (cf) return cf.trim();
-  const xff = req.headers.get("x-forwarded-for"); // ngrok / wrangler dev --remote
-  if (xff) return xff.split(",")[0].trim();
-  return "127.0.0.1"; // wrangler dev --local
+  return req.headers.get("cf-connecting-ip")?.trim() || "127.0.0.1";
+}
+
+/** Rate-limit bucket: exact IPv4, /64 for IPv6 (a host usually owns a whole /64). */
+export function ipBucket(ip: string): string {
+  if (!ip.includes(":")) return ip;
+  const bits = parseV6(ip);
+  if (bits === null) return ip;
+  const prefix = bits >> 64n;
+  return `${prefix.toString(16)}::/64`;
 }
 
 export function parseCidr(cidr: string): { bits: bigint; prefix: number; size: number } | null {

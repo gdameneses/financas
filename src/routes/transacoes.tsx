@@ -1,6 +1,7 @@
 import { Hono } from "hono";
 import type { AppEnv } from "../env";
 import { Layout } from "../pages/layout";
+import { parseId } from "../middleware";
 import { CatIcon, Icon, MonthNav, TxList } from "../pages/bits";
 import {
   createTransaction,
@@ -191,7 +192,8 @@ transacoes.get("/transacoes", async (c) => {
 });
 
 transacoes.get("/transacoes/:id", async (c) => {
-  const id = Number(c.req.param("id"));
+  const id = parseId(c.req.param("id"));
+  if (id === null) return c.notFound();
   const [tx, cats, payees] = await Promise.all([getTransaction(c.env.DB, id), listCategories(c.env.DB), listPayees(c.env.DB)]);
   if (!tx) return c.notFound();
   const back = `/transacoes?mes=${tx.date.slice(0, 7)}`;
@@ -209,7 +211,8 @@ transacoes.get("/transacoes/:id", async (c) => {
 });
 
 transacoes.post("/transacoes/:id", async (c) => {
-  const id = Number(c.req.param("id"));
+  const id = parseId(c.req.param("id"));
+  if (id === null) return c.notFound();
   const [tx, cats, payees, form] = await Promise.all([
     getTransaction(c.env.DB, id),
     listCategories(c.env.DB),
@@ -232,7 +235,8 @@ transacoes.post("/transacoes/:id", async (c) => {
 });
 
 transacoes.post("/transacoes/:id/excluir", async (c) => {
-  const id = Number(c.req.param("id"));
+  const id = parseId(c.req.param("id"));
+  if (id === null) return c.notFound();
   const tx = await getTransaction(c.env.DB, id);
   if (!tx) return c.notFound();
   await deleteTransaction(c.env.DB, id);

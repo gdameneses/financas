@@ -177,6 +177,81 @@ describe("access gates", () => {
     expect(rows[rows.length - 1].user_id).not.toBeNull();
   });
 
+  it("bootstrap cannot re-open: approved device asking from a new IP stays approved; after revoke, users>0 blocks it", async () => {
+    const admin = await bootstrapAdmin();
+    admin.ip = IP_OTHER;
+    // Re-request from a new network: device stays approved, a code is issued for the IP only.
+    let r = await admin.form("/acesso", { op: "request" });
+    expect(r.status).toBe(200);
+    const dev = await env.DB.prepare("SELECT status, requested_email FROM devices WHERE name = 'laptop'").first<{ status: string; requested_email: string }>();
+    expect(dev).toEqual({ status: "approved", requested_email: ADMIN });
+    r = await admin.form("/acesso", { op: "code", code: await pendingCode() });
+    expect(r.headers.get("location")).toBe("/login");
+    expect((await admin.fetch("/")).status).toBe(200); // IP_OTHER now allowed, session intact
+    // Even with zero approved devices, an existing user closes the bootstrap door.
+    await env.DB.prepare("UPDATE devices SET status = 'revoked'").run();
+    const stranger = new Browser(IP_HOME);
+    r = await stranger.form("/acesso", { op: "request", email: "second@example.com", name: "x" });
+    expect(r.status).toBe(200); // pending, not approved
+    expect((await env.DB.prepare("SELECT COUNT(*) AS n FROM devices WHERE status = 'approved'").first<{ n: number }>())!.n).toBe(0);
+  });
+
+  it("an admin e-mail with no account cannot be claimed through a code", async () => {
+    const admin = await bootstrapAdmin();
+    const stranger = new Browser(IP_OTHER);
+    await stranger.form("/acesso", { op: "request", email: "second@example.com", name: "fake" });
+    await stranger.form("/acesso", { op: "code", code: await pendingCode() });
+    let r = await stranger.fetch("/login");
+    expect(await r.text()).not.toContain("Criar sua conta");
+    r = await stranger.form("/login", { email: "second@example.com", password: "senha-forte-123" });
+    expect(r.status).toBe(401);
+    // Admin one-click approve of an admin-e-mail request needs the explicit confirmation tick.
+    const stranger2 = new Browser(IP_OTHER);
+    await stranger2.form("/acesso", { op: "request", email: "second@example.com", name: "fake2" });
+    const id = (await env.DB.prepare("SELECT id FROM devices WHERE name = 'fake2'").first<{ id: number }>())!.id;
+    r = await admin.form(`/acessos/aparelhos/${id}/aprovar`, { allow_ip: "1" });
+    expect(r.headers.get("location")).toContain("confirma");
+    expect((await env.DB.prepare("SELECT status FROM devices WHERE id = ?").bind(id).first<{ status: string }>())!.status).toBe("pending");
+  });
+
+  it("revoked device cannot redeem a still-live code", async () => {
+    const admin = await bootstrapAdmin();
+    const phone = new Browser(IP_OTHER);
+    await phone.form("/acesso", { op: "request", email: "nic@example.com", name: "celular" });
+    const code = await pendingCode();
+    const id = (await env.DB.prepare("SELECT id FROM devices WHERE name = 'celular'").first<{ id: number }>())!.id;
+    await admin.form(`/acessos/aparelhos/${id}/revogar`, {});
+    const r = await phone.form("/acesso", { op: "code", code });
+    expect(r.status).toBe(400);
+    expect((await env.DB.prepare("SELECT status FROM devices WHERE id = ?").bind(id).first<{ status: string }>())!.status).toBe("revoked");
+  });
+
+  it("login attempts are counted per e-mail and survive another user's login", async () => {
+    const admin = await bootstrapAdmin();
+    for (let i = 0; i < 5; i++) await admin.form("/login", { email: ADMIN, password: "errada-errada" });
+    await admin.form("/logout", {});
+    const r = await admin.form("/login", { email: ADMIN, password: "senha-forte-123" });
+    expect(r.status).toBe(429);
+  });
+
+  it("changing the password logs out other sessions and cannot remove the last allowed IP", async () => {
+    const admin = await bootstrapAdmin();
+    const second = new Browser(IP_HOME);
+    // second browser: approved by the admin, same account logs in
+    await second.form("/acesso", { op: "request", email: ADMIN, name: "tablet" });
+    const id = (await env.DB.prepare("SELECT id FROM devices WHERE name = 'tablet'").first<{ id: number }>())!.id;
+    await admin.form(`/acessos/aparelhos/${id}/aprovar`, { allow_ip: "1", confirm_admin: "1" });
+    await second.form("/login", { email: ADMIN, password: "senha-forte-123" });
+    expect((await second.fetch("/")).status).toBe(200);
+    let r = await admin.form("/config/senha", { current: "senha-forte-123", next: "nova-senha-456" });
+    expect(r.status).toBe(302);
+    expect((await second.fetch("/")).headers.get("location")).toBe("/login");
+    expect((await admin.fetch("/")).status).toBe(200);
+    const ip = (await env.DB.prepare("SELECT id FROM allowed_ips").first<{ id: number }>())!.id;
+    r = await admin.form(`/acessos/ips/${ip}/remover`, {});
+    expect(r.headers.get("location")).toContain("vazia");
+  });
+
   it("LIBERADO=true approves any browser and skips the IP list", async () => {
     const b = new Browser(IP_OTHER);
     const r = await b.fetch("/", {}, { LIBERADO: "true" });

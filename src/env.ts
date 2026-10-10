@@ -22,6 +22,8 @@ export type Device = {
   requested_ip: string;
   created_at: string;
   last_seen_at: string;
+  /** User id of the admin who approved it; NULL for bootstrap and code redemption. */
+  approved_by: number | null;
   approved_at: string | null;
   revoked_at: string | null;
 };

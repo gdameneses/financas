@@ -1,5 +1,17 @@
 import { describe, it, expect } from "vitest";
-import { ipInCidr, parseCidr, ipAllowed } from "../src/lib/ip";
+import { ipInCidr, parseCidr, ipAllowed, ipBucket, clientIp } from "../src/lib/ip";
+
+describe("client ip & buckets", () => {
+  it("trusts only cf-connecting-ip", () => {
+    expect(clientIp(new Request("https://x/", { headers: { "x-forwarded-for": "1.2.3.4" } }))).toBe("127.0.0.1");
+    expect(clientIp(new Request("https://x/", { headers: { "cf-connecting-ip": "1.2.3.4", "x-forwarded-for": "9.9.9.9" } }))).toBe("1.2.3.4");
+  });
+  it("buckets IPv6 by /64", () => {
+    expect(ipBucket("2804:14d:1:2:aaaa:bbbb:cccc:dddd")).toBe(ipBucket("2804:14d:1:2:1:2:3:4"));
+    expect(ipBucket("2804:14d:1:2::1")).not.toBe(ipBucket("2804:14d:1:3::1"));
+    expect(ipBucket("1.2.3.4")).toBe("1.2.3.4");
+  });
+});
 
 describe("ip / cidr", () => {
   it("matches exact IPv4 and ranges", () => {

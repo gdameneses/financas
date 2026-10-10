@@ -1,6 +1,6 @@
 import type { MiddlewareHandler } from "hono";
 import type { AppEnv } from "./env";
-import { allowedCidrs, autoApprove, deviceTokenFromRequest, findDevice, touchDevice } from "./auth/device";
+import { allowedCidrs, autoApprove, deviceTokenFromRequest, findDevice, isSecure, touchDevice } from "./auth/device";
 import { findSession, sessionTokenFromRequest } from "./auth/session";
 import { clientIp, ipAllowed } from "./lib/ip";
 import { logAccess, type Outcome } from "./lib/accesslog";
@@ -9,10 +9,17 @@ import { logAccess, type Outcome } from "./lib/accesslog";
 const PUBLIC_FILES = new Set(["/manifest.webmanifest", "/sw.js", "/app.css", "/app.js", "/offline.html"]);
 const isPublicAsset = (path: string) => PUBLIC_FILES.has(path) || path.startsWith("/icons/");
 
-/** Layer 0: serve assets, resolve the client IP, and log every other request after it completes. */
+// NOTE: every path comparison below uses c.req.path, the decoded path Hono routes on
+// (so "/%61cesso" and "/acesso" are the same page here and in the router).
+
+/** Layer 0: https only (except localhost), assets, client IP, and one access_log row per request. */
 export const accessLog: MiddlewareHandler<AppEnv> = async (c, next) => {
-  const path = new URL(c.req.url).pathname;
-  if (isPublicAsset(path)) return c.env.ASSETS.fetch(c.req.raw);
+  const url = new URL(c.req.url);
+  if (url.protocol === "http:" && isSecure(c)) {
+    url.protocol = "https:";
+    return c.redirect(url.toString(), 301);
+  }
+  if (isPublicAsset(c.req.path)) return c.env.ASSETS.fetch(c.req.raw);
   c.set("ip", clientIp(c.req.raw));
   await next();
   const outcome = (c.get("outcome") as Outcome | undefined) ?? (c.res.status >= 400 ? "forbidden" : "ok");
@@ -33,7 +40,7 @@ export const requireAccess: MiddlewareHandler<AppEnv> = async (c, next) => {
  * Anything that fails lands on /acesso, which is the only page reachable without both.
  */
 export const requireIpAndDevice: MiddlewareHandler<AppEnv> = async (c, next) => {
-  const path = new URL(c.req.url).pathname;
+  const path = c.req.path;
   const ip = c.get("ip");
   let device = await findDevice(c.env.DB, deviceTokenFromRequest(c));
   if (device) c.set("device", device);
@@ -58,18 +65,18 @@ export const requireIpAndDevice: MiddlewareHandler<AppEnv> = async (c, next) => 
   }
 
   c.set("outcome", !ipOk ? "ip_denied" : !device ? "device_unknown" : device.status === "pending" ? "device_pending" : "device_denied");
-  if (path === "/acesso") return next();
+  if (path === "/acesso" && (c.req.method === "GET" || c.req.method === "POST")) return next();
   return c.redirect("/acesso");
 };
 
 /** Layer 3: login session bound to this device; banned users are logged out on the spot. */
 export const requireSession: MiddlewareHandler<AppEnv> = async (c, next) => {
   const device = c.get("device");
+  if (!device) return c.redirect("/acesso"); // unreachable in practice; never dereference undefined
   const s = await findSession(c, sessionTokenFromRequest(c), device.id);
   if (!s || s.banned) {
     c.set("outcome", s?.banned ? "banned" : "unauthenticated");
-    const path = new URL(c.req.url).pathname;
-    if (path.startsWith("/api/")) return c.text("Não autenticado", 401);
+    if (c.req.path.startsWith("/api/")) return c.text("Não autenticado", 401);
     return c.redirect("/login");
   }
   c.set("user", s.user);
@@ -85,3 +92,8 @@ export const requireAdmin: MiddlewareHandler<AppEnv> = async (c, next) => {
   }
   await next();
 };
+
+/** Route ids: anything that is not a positive integer is "not found", never NaN bound to SQL. */
+export function parseId(raw: string): number | null {
+  return /^\d{1,12}$/.test(raw) ? Number(raw) : null;
+}

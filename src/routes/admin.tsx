@@ -3,7 +3,8 @@ import { Hono } from "hono";
 import type { AppEnv, Device } from "../env";
 import { Layout } from "../pages/layout";
 import { Icon } from "../pages/bits";
-import { approveDevice, denyDevice, revokeDevice } from "../auth/device";
+import { approveDevice, denyDevice, getDevice, revokeDevice } from "../auth/device";
+import { parseId } from "../middleware";
 import { banUser, unbanUser } from "../auth/session";
 import { parseCidr } from "../lib/ip";
 import { adminEmails } from "../lib/email";
@@ -38,6 +39,7 @@ admin.get("/", async (c) => {
   const myIp = c.get("ip");
   const pendingCount = (await db.prepare("SELECT COUNT(*) AS n FROM devices WHERE status = 'pending'").first<{ n: number }>())?.n ?? 0;
 
+  const admins = adminEmails(c.env);
   let body;
   if (tab === "pedidos") {
     const codes = (
@@ -67,11 +69,21 @@ admin.get("/", async (c) => {
                 <small>{live ? "código, 30 min" : "expirado"}</small>
                 <b>{r.code.slice(0, 4)} {r.code.slice(4)}</b>
               </div>
+              {admins.includes(r.email) ? (
+                <p class="err">
+                  Este pedido usa um e-mail de <b>administrador</b>. Aprovar entrega essa conta a quem fez o pedido. Só aprove se a pessoa for mesmo quem diz.
+                </p>
+              ) : null}
               <div class="row">
                 <form method="post" action={`/acessos/aparelhos/${r.device_id}/aprovar`} class="inline">
                   <label class="check">
                     <input type="checkbox" name="allow_ip" value="1" checked /> liberar IP {r.ip}
                   </label>
+                  {admins.includes(r.email) ? (
+                    <label class="check">
+                      <input type="checkbox" name="confirm_admin" value="1" /> confirmo que é {r.email}
+                    </label>
+                  ) : null}
                   <button class="btn small">Aprovar agora</button>
                 </form>
                 <form method="post" action={`/acessos/aparelhos/${r.device_id}/negar`} class="inline">
@@ -121,7 +133,6 @@ admin.get("/", async (c) => {
         .prepare("SELECT u.id, u.email, u.created_at, u.banned_at, (SELECT COUNT(*) FROM devices d WHERE d.requested_email = u.email AND d.status = 'approved') AS devices FROM users u ORDER BY u.id")
         .all<UserRow>()
     ).results;
-    const admins = adminEmails(c.env);
     body = (
       <ul class="devlist">
         {users.map((u) => (
@@ -262,22 +273,34 @@ admin.get("/", async (c) => {
 const back = (tab: Tab, ok: string) => `/acessos?tab=${tab}&ok=${encodeURIComponent(ok)}`;
 
 admin.post("/aparelhos/:id/aprovar", async (c) => {
+  const id = parseId(c.req.param("id"));
+  if (id === null) return c.notFound();
   const form = await c.req.parseBody();
-  await approveDevice(c.env.DB, Number(c.req.param("id")), c.get("user").id, form.allow_ip === "1");
+  const d = await getDevice(c.env.DB, id);
+  if (!d || d.status !== "pending") return c.notFound();
+  // Approving a request that claims an admin address hands that account over: require the explicit tick.
+  if (adminEmails(c.env).includes(d.requested_email) && form.confirm_admin !== "1") {
+    return c.redirect(back("pedidos", "Pedido com e-mail de administrador: marque a confirmação para aprovar"));
+  }
+  await approveDevice(c.env.DB, id, c.get("user").id, form.allow_ip === "1");
   return c.redirect(back("pedidos", "Aparelho aprovado"));
 });
 admin.post("/aparelhos/:id/negar", async (c) => {
-  await denyDevice(c.env.DB, Number(c.req.param("id")));
+  const id = parseId(c.req.param("id"));
+  if (id === null) return c.notFound();
+  await denyDevice(c.env.DB, id);
   return c.redirect(back("pedidos", "Pedido negado"));
 });
 admin.post("/aparelhos/:id/revogar", async (c) => {
-  const id = Number(c.req.param("id"));
+  const id = parseId(c.req.param("id"));
+  if (id === null) return c.notFound();
   if (id === c.get("device").id) return c.text("Não dá para revogar o aparelho atual", 400);
   await revokeDevice(c.env.DB, id);
   return c.redirect(back("aparelhos", "Aparelho revogado"));
 });
 admin.post("/usuarios/:id/bloquear", async (c) => {
-  const id = Number(c.req.param("id"));
+  const id = parseId(c.req.param("id"));
+  if (id === null) return c.notFound();
   const u = await c.env.DB.prepare("SELECT email FROM users WHERE id = ?").bind(id).first<{ email: string }>();
   if (!u) return c.notFound();
   if (id === c.get("user").id || adminEmails(c.env).includes(u.email)) return c.text("Não dá para bloquear um administrador", 400);
@@ -285,7 +308,9 @@ admin.post("/usuarios/:id/bloquear", async (c) => {
   return c.redirect(back("usuarios", "Usuário bloqueado"));
 });
 admin.post("/usuarios/:id/desbloquear", async (c) => {
-  await unbanUser(c.env.DB, Number(c.req.param("id")));
+  const id = parseId(c.req.param("id"));
+  if (id === null) return c.notFound();
+  await unbanUser(c.env.DB, id);
   return c.redirect(back("usuarios", "Usuário desbloqueado"));
 });
 admin.post("/ips", async (c) => {
@@ -298,6 +323,11 @@ admin.post("/ips", async (c) => {
   return c.redirect(back("ips", "IP adicionado"));
 });
 admin.post("/ips/:id/remover", async (c) => {
-  await c.env.DB.prepare("DELETE FROM allowed_ips WHERE id = ?").bind(Number(c.req.param("id"))).run();
+  const id = parseId(c.req.param("id"));
+  if (id === null) return c.notFound();
+  // The allowlist is mandatory: removing the last entry would silently switch the layer off.
+  const n = await c.env.DB.prepare("SELECT COUNT(*) AS n FROM allowed_ips").first<{ n: number }>();
+  if ((n?.n ?? 0) <= 1) return c.redirect(back("ips", "A lista não pode ficar vazia: adicione outro IP antes de remover este"));
+  await c.env.DB.prepare("DELETE FROM allowed_ips WHERE id = ?").bind(id).run();
   return c.redirect(back("ips", "IP removido"));
 });

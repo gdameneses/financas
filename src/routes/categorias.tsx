@@ -1,6 +1,7 @@
 import { Hono } from "hono";
 import type { AppEnv } from "../env";
 import { Layout } from "../pages/layout";
+import { parseId } from "../middleware";
 import { CatIcon, Icon } from "../pages/bits";
 import { CATEGORY_ICONS } from "../icons";
 import {
@@ -113,7 +114,8 @@ categorias.post("/", async (c) => {
 });
 
 categorias.get("/:id", async (c) => {
-  const id = Number(c.req.param("id"));
+  const id = parseId(c.req.param("id"));
+  if (id === null) return c.notFound();
   const cat = await getCategory(c.env.DB, id);
   if (!cat) return c.notFound();
   const n = await countCategoryTransactions(c.env.DB, id);
@@ -150,7 +152,8 @@ categorias.get("/:id", async (c) => {
 });
 
 categorias.post("/:id", async (c) => {
-  const id = Number(c.req.param("id"));
+  const id = parseId(c.req.param("id"));
+  if (id === null) return c.notFound();
   if (!(await getCategory(c.env.DB, id))) return c.notFound();
   const f = readFields(await c.req.parseBody());
   if (f.name) await renameCategory(c.env.DB, id, f.name, f.icon, f.color);
@@ -158,7 +161,8 @@ categorias.post("/:id", async (c) => {
 });
 
 categorias.post("/:id/excluir", async (c) => {
-  const id = Number(c.req.param("id"));
+  const id = parseId(c.req.param("id"));
+  if (id === null) return c.notFound();
   if (!(await getCategory(c.env.DB, id))) return c.notFound();
   await deleteCategory(c.env.DB, id);
   return c.redirect(`/categorias?ok=${encodeURIComponent("Categoria excluída")}`);

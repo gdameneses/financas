@@ -3,6 +3,7 @@ import type { AppEnv } from "../env";
 import { Layout } from "../pages/layout";
 import { Icon } from "../pages/bits";
 import { hashPassword, verifyPassword } from "../auth/crypto";
+import { clearLoginAttempts, destroyOtherSessions, loginRateLimited, recordLoginAttempt } from "../auth/session";
 
 export const mais = new Hono<AppEnv>();
 
@@ -83,16 +84,23 @@ mais.get("/config", (c) => c.html(<ConfigPage ok={c.req.query("ok") ?? undefined
 
 mais.post("/config/senha", async (c) => {
   const user = c.get("user");
+  const db = c.env.DB;
   const form = await c.req.parseBody();
-  const row = await c.env.DB.prepare("SELECT password_hash, salt, iterations FROM users WHERE id = ?")
+  // Same per-e-mail counter as /login: a hijacked session cannot guess the current password freely.
+  if (await loginRateLimited(db, user.email)) return c.html(<ConfigPage error="Muitas tentativas. Aguarde 15 minutos." />, 429);
+  const row = await db.prepare("SELECT password_hash, salt, iterations FROM users WHERE id = ?")
     .bind(user.id)
     .first<{ password_hash: string; salt: string; iterations: number }>();
   if (!row || !(await verifyPassword(String(form.current ?? ""), { hash: row.password_hash, salt: row.salt, iterations: row.iterations }))) {
+    await recordLoginAttempt(db, user.email);
     return c.html(<ConfigPage error="Senha atual incorreta." />, 401);
   }
   const next = String(form.next ?? "");
   if (next.length < 8) return c.html(<ConfigPage error="A nova senha precisa de ao menos 8 caracteres." />, 400);
   const h = await hashPassword(next);
-  await c.env.DB.prepare("UPDATE users SET password_hash = ?, salt = ?, iterations = ? WHERE id = ?").bind(h.hash, h.salt, h.iterations, user.id).run();
+  await db.prepare("UPDATE users SET password_hash = ?, salt = ?, iterations = ? WHERE id = ?").bind(h.hash, h.salt, h.iterations, user.id).run();
+  await clearLoginAttempts(db, user.email);
+  // Changing the password logs out every other browser of this user.
+  await destroyOtherSessions(db, user.id, c.get("sessionId"));
   return c.redirect(`/config?ok=${encodeURIComponent("Senha alterada")}`);
 });
