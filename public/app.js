@@ -81,18 +81,26 @@
   function brl(v) { return (v / 100).toLocaleString("pt-BR", { style: "currency", currency: "BRL" }); }
   // Compressed (log) value axis: R$ 1.000 → 10.000 → 100.000 are equal steps, so one big
   // value never flattens the others. Only round ticks (1, 5 × 10^n) get a label.
+  // Axis labels are illustration, not a report: whole reais, compact, powers of ten only, no grid.
+  function compact(cents) {
+    var r = cents / 100;
+    if (r >= 1e6) return (r / 1e6).toLocaleString("pt-BR", { maximumFractionDigits: 1 }) + " mi";
+    if (r >= 1e3) return (r / 1e3).toLocaleString("pt-BR", { maximumFractionDigits: 1 }) + " mil";
+    return r.toLocaleString("pt-BR", { maximumFractionDigits: 0 });
+  }
   function logAxis(extra) {
     return Object.assign({
       type: "logarithmic",
       min: 100, // R$ 1
-      grid: { color: "rgba(128,128,128,.15)" },
-      ticks: {
-        autoSkip: false,
-        callback: function (v) {
-          var m = v / Math.pow(10, Math.floor(Math.log10(v)));
-          return (m === 1 || m === 5) && v >= 100 ? brl(v) : "";
-        },
+      grid: { display: false },
+      border: { display: false },
+      afterBuildTicks: function (axis) {
+        axis.ticks = axis.ticks.filter(function (t) {
+          var v = t.value;
+          return v >= 100 && Math.abs(Math.log10(v) - Math.round(Math.log10(v))) < 1e-9;
+        });
       },
+      ticks: { callback: function (v) { return compact(v); } },
     }, extra || {});
   }
   function charts() {

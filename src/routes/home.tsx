@@ -43,8 +43,11 @@ home.get("/", async (c) => {
     colors: planned.map((l) => l.color),
     elapsedPct: plan.elapsed_pct,
   };
-  // Last 7 days, today last; days without movement are zero so the week reads as a calendar.
-  const week = Array.from({ length: 7 }, (_, i) => addDays(weekFrom, i)).map((d) => {
+  // Up to 7 days ending today, starting at the first day that has anything: one day of data = one bar.
+  const firstWithData = days.length ? days[0].date : today;
+  const start = firstWithData > weekFrom ? firstWithData : weekFrom;
+  const nDays = Math.round((Date.parse(today) - Date.parse(start)) / 86_400_000) + 1;
+  const week = Array.from({ length: nDays }, (_, i) => addDays(start, i)).map((d) => {
     const row = days.find((x) => x.date === d);
     return { date: d, label: `${weekdayLabel(d)} ${dateLabel(d).slice(0, 2)}`, expense: row?.expense ?? 0, income: row?.income ?? 0, count: row?.count ?? 0 };
   });
@@ -128,18 +131,20 @@ home.get("/", async (c) => {
             <span>Para onde foi</span>
             <b class="neg">− {formatBRL(expense)}</b>
           </summary>
-          <div class="donutwrap">
-            <canvas id="donut" data-src="donut-data"></canvas>
+          <div class="donutrow">
+            <div class="donutwrap">
+              <canvas id="donut" data-src="donut-data"></canvas>
+            </div>
+            <ul class="legend">
+              {out.map((t) => (
+                <li>
+                  <i style={`background:${t.color ?? "#7d7d7d"}`}></i>
+                  <span>{t.name ?? "Sem categoria"}</span>
+                  <b>{formatBRL(t.total)}</b>
+                </li>
+              ))}
+            </ul>
           </div>
-          <ul class="legend">
-            {out.map((t) => (
-              <li>
-                <i style={`background:${t.color ?? "#7d7d7d"}`}></i>
-                <span>{t.name ?? "Sem categoria"}</span>
-                <b>{formatBRL(t.total)}</b>
-              </li>
-            ))}
-          </ul>
           <ChartData id="donut-data" data={donut} />
         </details>
       ) : null}
