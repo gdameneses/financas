@@ -122,8 +122,10 @@
       ticks: { callback: function (v) { return compact(v); } },
     }, extra || {});
   }
+  var made = [];
+  function relayout() { made.forEach(function (ch) { try { ch.resize(); ch.update("none"); } catch (e) { /* ignore */ } }); }
   function charts() {
-    if (!window.Chart) return;
+    if (!window.Chart || made.length) return;
     var css = getComputedStyle(document.documentElement);
     Chart.defaults.color = css.getPropertyValue("--fg-dim").trim() || "#8d8872";
     Chart.defaults.borderColor = "rgba(128,128,128,.15)";
@@ -132,16 +134,16 @@
     var donut = document.getElementById("donut");
     var d = donut && data(donut.dataset.src);
     if (d) {
-      new Chart(donut, {
+      made.push(new Chart(donut, {
         type: "doughnut",
         data: { labels: d.labels, datasets: [{ data: d.values, backgroundColor: d.colors, borderWidth: 0 }] },
-        options: { cutout: "68%", plugins: { legend: { display: false }, tooltip: { callbacks: { label: function (c) { return " " + brl(c.parsed); } } } } },
-      });
+        options: { cutout: "68%", maintainAspectRatio: false, plugins: { legend: { display: false }, tooltip: { callbacks: { label: function (c) { return " " + brl(c.parsed); } } } } },
+      }));
     }
     var bars = document.getElementById("bars");
     var b = bars && data(bars.dataset.src);
     if (b) {
-      new Chart(bars, {
+      made.push(new Chart(bars, {
         type: "bar",
         data: { labels: b.labels, datasets: [{ data: b.values, backgroundColor: b.colors, borderRadius: 6 }] },
         options: {
@@ -149,12 +151,12 @@
           plugins: { legend: { display: false }, tooltip: { callbacks: { label: function (c) { return " " + brl(c.parsed.x); } } } },
           scales: { x: logAxis(), y: { grid: { display: false } } },
         },
-      });
+      }));
     }
     var week = document.getElementById("week");
     var w = week && data(week.dataset.src);
     if (w) {
-      new Chart(week, {
+      made.push(new Chart(week, {
         type: "bar",
         data: {
           labels: w.labels,
@@ -165,13 +167,13 @@
           plugins: { legend: { display: false }, tooltip: { callbacks: { label: function (c) { return " " + c.dataset.label + ": " + brl(c.parsed.y); } } } },
           scales: { y: logAxis(), x: { grid: { display: false } } },
         },
-      });
+      }));
     }
     var plan = document.getElementById("plan");
     var p = plan && data(plan.dataset.src);
     if (p) {
       var faded = p.colors.map(function (c) { return c + "40"; }); // same hue, 25% alpha = "planejado"
-      new Chart(plan, {
+      made.push(new Chart(plan, {
         type: "bar",
         data: {
           labels: p.labels,
@@ -207,12 +209,12 @@
             ctx.restore();
           },
         }],
-      });
+      }));
     }
     var trend = document.getElementById("trend");
     var t = trend && data(trend.dataset.src);
     if (t) {
-      new Chart(trend, {
+      made.push(new Chart(trend, {
         data: {
           labels: t.labels,
           datasets: [
@@ -225,12 +227,16 @@
           plugins: { tooltip: { callbacks: { label: function (c) { return " " + c.dataset.label + ": " + brl(c.parsed.y); } } } },
           scales: { y: { ticks: { callback: function (v) { return brl(v); }, maxTicksLimit: 5 }, grid: { color: "rgba(128,128,128,.15)" } }, x: { grid: { display: false } } },
         },
-      });
+      }));
     }
   }
   if (window.Chart) charts();
   else {
     var s = document.querySelector('script[src*="chart.umd"]');
     if (s) s.addEventListener("load", charts);
+    window.addEventListener("load", charts); // belt and braces: whichever fires last with Chart present
   }
+  // Pages restored from the back-forward cache or revealed after a fold/expand need a relayout.
+  window.addEventListener("pageshow", function () { charts(); relayout(); });
+  window.addEventListener("resize", relayout);
 })();

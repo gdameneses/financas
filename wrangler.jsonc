@@ -6,6 +6,8 @@
   "compatibility_flags": ["nodejs_compat"],
   "assets": { "directory": "./public", "binding": "ASSETS", "html_handling": "none" },
   "observability": { "enabled": true },
+  // D1 lives in the US; running the Worker next to it turns N database round trips into one.
+  "placement": { "mode": "smart" },
   "vars": {
     // Set to "1" in production so requests without a Cloudflare Access identity are rejected.
     "REQUIRE_ACCESS": "0",

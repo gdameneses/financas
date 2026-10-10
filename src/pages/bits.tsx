@@ -71,4 +71,4 @@ export const ChartData = ({ id, data }: { id: string; data: unknown }) =>
   html`<script type="application/json" id="${id}">${raw(JSON.stringify(data).replace(/</g, "\\u003c"))}</script>`;
 
 export const ChartJs = () =>
-  html`<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js" defer></script>`;
+  html`<script src="/vendor/chart.umd.min.js" defer></script>`;

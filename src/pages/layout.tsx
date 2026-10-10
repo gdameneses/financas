@@ -57,6 +57,11 @@ export const Layout = ({ title, children, bare, active, toast }: Props) => (
       {html`<script>
         if ("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js");
       </script>`}
+      {bare
+        ? null
+        : html`<script type="speculationrules">
+        {"prerender":[{"urls":["/","/transacoes","/planejamento","/mais","/nova"],"eagerness":"moderate"}]}
+      </script>`}
     </body>
   </html>
 );

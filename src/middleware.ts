@@ -7,7 +7,7 @@ import { logAccess, type Outcome } from "./lib/accesslog";
 
 // Static assets must load on the gate pages too; they are not logged.
 const PUBLIC_FILES = new Set(["/manifest.webmanifest", "/sw.js", "/app.css", "/app.js", "/offline.html"]);
-const isPublicAsset = (path: string) => PUBLIC_FILES.has(path) || path.startsWith("/icons/");
+const isPublicAsset = (path: string) => PUBLIC_FILES.has(path) || path.startsWith("/icons/") || path.startsWith("/vendor/");
 
 // NOTE: every path comparison below uses c.req.path, the decoded path Hono routes on
 // (so "/%61cesso" and "/acesso" are the same page here and in the router).
