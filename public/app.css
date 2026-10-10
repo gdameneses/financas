@@ -270,3 +270,59 @@ details.fold > .legendline { margin-bottom: 14px; }
   .toast { animation-timing-function: steps(1, end); }
   details.fold > summary .caret { transition: none; }
 }
+
+/* ===== motion: short (≤ .2s), CSS only, off under reduced motion ===== */
+:root { --t: .18s; --ease: cubic-bezier(.2, .7, .2, 1); }
+
+/* page-to-page: slide in the direction of the tab you tapped */
+@view-transition { navigation: auto; }
+main { view-transition-name: main; }
+.tabs { view-transition-name: tabs; }
+::view-transition-old(main), ::view-transition-new(main) { animation-duration: var(--t); animation-timing-function: var(--ease); }
+::view-transition-old(main) { animation-name: vt-out-left; }
+::view-transition-new(main) { animation-name: vt-in-right; }
+html[data-dir="back"]::view-transition-old(main) { animation-name: vt-out-right; }
+html[data-dir="back"]::view-transition-new(main) { animation-name: vt-in-left; }
+html[data-dir="same"]::view-transition-old(main) { animation-name: vt-fade-out; }
+html[data-dir="same"]::view-transition-new(main) { animation-name: vt-fade-in; }
+::view-transition-old(tabs), ::view-transition-new(tabs) { animation: none; }
+@keyframes vt-out-left  { to { opacity: 0; transform: translateX(-24px); } }
+@keyframes vt-in-right  { from { opacity: 0; transform: translateX(24px); } }
+@keyframes vt-out-right { to { opacity: 0; transform: translateX(24px); } }
+@keyframes vt-in-left   { from { opacity: 0; transform: translateX(-24px); } }
+@keyframes vt-fade-out  { to { opacity: 0; } }
+@keyframes vt-fade-in   { from { opacity: 0; } }
+
+/* tab indicator slides between tabs */
+.tabs a.on::before { view-transition-name: tab-indicator; }
+::view-transition-group(tab-indicator) { animation-duration: var(--t); animation-timing-function: var(--ease); }
+
+/* expand / collapse */
+details { interpolate-size: allow-keywords; }
+details::details-content { block-size: 0; overflow: clip; transition: block-size var(--t) var(--ease), content-visibility var(--t) allow-discrete; }
+details[open]::details-content { block-size: auto; }
+details.fold > summary span::before { transition: transform var(--t) var(--ease); }
+.donutrow, .donutwrap { transition: height var(--t) var(--ease); }
+
+/* feedback on touch */
+.btn, .chip, .fab, .tabs a, .monthnav a, .tx, .menu a, .catlist a { transition: background-color var(--t), border-color var(--t), color var(--t), transform .12s var(--ease), opacity var(--t); }
+.btn:active, .chip:active, .fab:active { transform: scale(.98); }
+.fab:active { transform: scale(.94); }
+.tx:active, .menu a:active, .catlist a:active { opacity: .7; }
+input, select, .amount, .kind label { transition: border-color var(--t), color var(--t), background-color var(--t); }
+.bar i { transition: width var(--t) var(--ease); }
+.alert { animation: rise var(--t) var(--ease) both; }
+@keyframes rise { from { opacity: 0; transform: translateY(6px); } }
+
+/* something was just added or saved: toast drops in, newest row glows for a moment */
+.toast { animation: toast-in var(--t) var(--ease) both, fade 3s forwards; }
+@keyframes toast-in { from { opacity: 0; transform: translate(-50%, -8px); } }
+html.just-saved .txlist li:nth-child(2) .tx { animation: fresh .9s var(--ease) both; }
+@keyframes fresh { 0% { background: color-mix(in srgb, var(--fg) 10%, transparent); transform: translateX(6px); opacity: 0; } 20% { opacity: 1; transform: none; } 100% { background: transparent; } }
+
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-group(*), ::view-transition-old(*), ::view-transition-new(*) { animation: none !important; }
+  details::details-content, .bar i, .btn, .chip, .fab, .tabs a, .tx, input, select { transition: none; }
+  .alert, html.just-saved .txlist li:nth-child(2) .tx { animation: none; }
+  .toast { animation: fade 3s steps(1, end) forwards; }
+}

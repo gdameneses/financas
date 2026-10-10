@@ -1,7 +1,7 @@
 // Service worker: makes the app installable and shows offline.html without network.
 // Static files are NETWORK-FIRST (cache only as an offline fallback), so a deploy is never
 // paired with a stale app.js/app.css on the next load. App pages are never cached (auth state).
-const VERSION = "v9";
+const VERSION = "v10";
 const SHELL = ["/app.css", "/app.js", "/vendor/chart.umd.min.js", "/manifest.webmanifest", "/icons/icon.svg", "/offline.html"];
 
 self.addEventListener("install", (e) => {

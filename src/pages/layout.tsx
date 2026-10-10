@@ -27,6 +27,19 @@ export const Layout = ({ title, children, bare, active, toast }: Props) => (
       <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="anonymous" />
       <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600&display=swap" />
       <link rel="stylesheet" href="/app.css" />
+      {html`<script>
+        // Slide direction for the page transition + "just saved" flag, decided before first paint.
+        (function () {
+          try {
+            var TABS = ["/", "/transacoes", "/planejamento", "/mais"];
+            var from = sessionStorage.getItem("fromTab"), here = TABS.indexOf(location.pathname), dir = "forward";
+            if (from !== null && here >= 0 && Number(from) >= 0) dir = here > Number(from) ? "forward" : here < Number(from) ? "back" : "same";
+            document.documentElement.dataset.dir = dir;
+            sessionStorage.setItem("fromTab", String(here));
+            if (location.search.indexOf("ok=") >= 0) document.documentElement.classList.add("just-saved");
+          } catch (e) {}
+        })();
+      </script>`}
     </head>
     <body>
       {raw(SPRITE)}
