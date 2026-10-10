@@ -29,15 +29,18 @@ export type Transaction = {
 };
 
 export type TransactionView = Transaction & {
+  user_id: number | null;
   category_name: string | null;
   category_icon: string | null;
   category_color: string | null;
+  /** e-mail of who added it (shared ledger); null for rows older than v2 */
+  user_email: string | null;
 };
 
 export type Budget = { category_id: number; month: string; cap_cents: number };
 
-const TX_VIEW = `SELECT t.*, c.name AS category_name, c.icon AS category_icon, c.color AS category_color
-  FROM transactions t LEFT JOIN categories c ON c.id = t.category_id`;
+const TX_VIEW = `SELECT t.*, c.name AS category_name, c.icon AS category_icon, c.color AS category_color, u.email AS user_email
+  FROM transactions t LEFT JOIN categories c ON c.id = t.category_id LEFT JOIN users u ON u.id = t.user_id`;
 
 export async function listCategories(db: D1Database): Promise<Category[]> {
   const r = await db.prepare("SELECT * FROM categories ORDER BY kind DESC, sort, name").all<Category>();
@@ -149,6 +152,23 @@ export async function totalsByCategory(db: D1Database, month: string): Promise<C
     )
     .bind(from, to)
     .all<CategoryTotal>();
+  return r.results;
+}
+
+export type DayTotal = { date: string; income: number; expense: number; count: number };
+
+/** Per-day totals in [from, to], inclusive; days without movement are absent. */
+export async function totalsByDay(db: D1Database, from: string, to: string): Promise<DayTotal[]> {
+  const r = await db
+    .prepare(
+      `SELECT date,
+         SUM(CASE WHEN kind = 'in' THEN amount_cents ELSE 0 END) AS income,
+         SUM(CASE WHEN kind = 'out' THEN amount_cents ELSE 0 END) AS expense,
+         COUNT(*) AS count
+       FROM transactions WHERE date BETWEEN ? AND ? GROUP BY date ORDER BY date`,
+    )
+    .bind(from, to)
+    .all<DayTotal>();
   return r.results;
 }
 

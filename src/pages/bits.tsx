@@ -50,6 +50,9 @@ export const TxList = ({ txs, empty = "Nada por aqui ainda." }: { txs: Transacti
                   <b>{t.payee || t.category_name || "Sem categoria"}</b>
                   <small>{t.payee ? t.category_name ?? "Sem categoria" : t.note}</small>
                 </span>
+                <span class="who" title={t.user_email ?? ""}>
+                  {t.user_email ? t.user_email[0].toUpperCase() : ""}
+                </span>
                 <span class={`amt ${t.kind}`}>
                   {t.kind === "in" ? "+" : "−"}
                   {formatBRL(t.amount_cents)}

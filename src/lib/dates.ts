@@ -46,6 +46,16 @@ export function dateLabel(date: string): string {
   return `${d}/${m}`;
 }
 
+export function addDays(date: string, delta: number): string {
+  const d = new Date(Date.parse(date) + delta * 86_400_000);
+  return d.toISOString().slice(0, 10);
+}
+
+const WEEKDAYS_PT = ["dom", "seg", "ter", "qua", "qui", "sex", "sáb"];
+export function weekdayLabel(date: string): string {
+  return WEEKDAYS_PT[new Date(Date.parse(date)).getUTCDay()];
+}
+
 export function daysBetween(a: string, b: string): number {
   return Math.round((Date.parse(b) - Date.parse(a)) / 86_400_000);
 }

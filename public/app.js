@@ -61,6 +61,18 @@
     });
   });
 
+  // --- collapsible cards remember their state on this device ---
+  document.querySelectorAll("details.fold[id]").forEach(function (d) {
+    try {
+      var saved = localStorage.getItem(d.id);
+      if (saved === "closed") d.open = false;
+      d.addEventListener("toggle", function () {
+        localStorage.setItem(d.id, d.open ? "open" : "closed");
+        window.dispatchEvent(new Event("resize")); // let Chart.js lay out a chart revealed after load
+      });
+    } catch (e) { /* storage unavailable: just stay open */ }
+  });
+
   // --- charts ---
   function data(id) {
     var el = document.getElementById(id);
@@ -92,6 +104,28 @@
           indexAxis: "y",
           plugins: { legend: { display: false }, tooltip: { callbacks: { label: function (c) { return " " + brl(c.parsed.x); } } } },
           scales: { x: { ticks: { callback: function (v) { return brl(v); }, maxTicksLimit: 4 }, grid: { color: "rgba(128,128,128,.15)" } }, y: { grid: { display: false } } },
+        },
+      });
+    }
+    var week = document.getElementById("week");
+    var w = week && data(week.dataset.src);
+    if (w) {
+      new Chart(week, {
+        type: "bar",
+        data: {
+          labels: w.labels,
+          datasets: [
+            { label: "Saídas", data: w.expense, backgroundColor: "rgba(196,127,122,.85)", borderRadius: 5 },
+            { label: "Entradas", data: w.income, backgroundColor: "rgba(143,185,150,.6)", borderRadius: 5, hidden: !w.income.some(function (v) { return v > 0; }) },
+          ],
+        },
+        options: {
+          maintainAspectRatio: false,
+          plugins: { legend: { display: false }, tooltip: { callbacks: { label: function (c) { return " " + c.dataset.label + ": " + brl(c.parsed.y); } } } },
+          scales: {
+            y: { ticks: { callback: function (v) { return brl(v); }, maxTicksLimit: 4 }, grid: { color: "rgba(128,128,128,.15)" } },
+            x: { grid: { display: false } },
+          },
         },
       });
     }

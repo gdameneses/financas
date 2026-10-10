@@ -2,10 +2,10 @@ import { Hono } from "hono";
 import type { AppEnv } from "../env";
 import { Layout } from "../pages/layout";
 import { ChartData, ChartJs, Icon, MonthNav, TxList } from "../pages/bits";
-import { listTransactions, totalsByCategory } from "../db";
+import { listTransactions, totalsByCategory, totalsByDay } from "../db";
 import { buildOrcamento } from "../reports/orcamento";
 import { activeAlerts, alertMessage, dismissAlert, noteAlert, syncAlerts } from "../alerts";
-import { currentMonth, isMonth } from "../lib/dates";
+import { addDays, currentMonth, dateLabel, isMonth, todayISO, weekdayLabel } from "../lib/dates";
 import { formatBRL } from "../lib/money";
 import { parseId } from "../middleware";
 
@@ -18,11 +18,14 @@ home.get("/", async (c) => {
   const admin = c.get("user").admin;
   const db = c.env.DB;
   if (isCurrent) await syncAlerts(db);
-  const [totals, txs, plan, alerts] = await Promise.all([
+  const today = todayISO();
+  const weekFrom = addDays(today, -6);
+  const [totals, txs, plan, alerts, days] = await Promise.all([
     totalsByCategory(db, month),
     listTransactions(db, { month, limit: admin ? 8 : 20 }),
     buildOrcamento(db, month),
     activeAlerts(db, month),
+    isCurrent ? totalsByDay(db, weekFrom, today) : Promise.resolve([]),
   ]);
   const income = totals.filter((t) => t.kind === "in").reduce((a, t) => a + t.total, 0);
   const expense = totals.filter((t) => t.kind === "out").reduce((a, t) => a + t.total, 0);
@@ -37,10 +40,16 @@ home.get("/", async (c) => {
     labels: planned.map((l) => l.name),
     planned: planned.map((l) => l.cap),
     actual: planned.map((l) => l.spent),
-    projected: planned.map((l) => l.projected),
     colors: planned.map((l) => l.color),
     elapsedPct: plan.elapsed_pct,
   };
+  // Last 7 days, today last; days without movement are zero so the week reads as a calendar.
+  const week = Array.from({ length: 7 }, (_, i) => addDays(weekFrom, i)).map((d) => {
+    const row = days.find((x) => x.date === d);
+    return { date: d, label: `${weekdayLabel(d)} ${dateLabel(d).slice(0, 2)}`, expense: row?.expense ?? 0, income: row?.income ?? 0, count: row?.count ?? 0 };
+  });
+  const weekExpense = week.reduce((a, d) => a + d.expense, 0);
+  const weekChart = { labels: week.map((d) => d.label), expense: week.map((d) => d.expense), income: week.map((d) => d.income) };
 
   return c.html(
     <Layout title="Início" active="home" toast={c.req.query("ok") ?? undefined}>
@@ -83,17 +92,29 @@ home.get("/", async (c) => {
         </section>
       ) : null}
 
+      {isCurrent ? (
+        <details class="card fold" id="fold-semana" open>
+          <summary>
+            <span>Últimos 7 dias</span>
+            <b class="neg">− {formatBRL(weekExpense)}</b>
+          </summary>
+          <canvas id="week" data-src="week-data" height="150"></canvas>
+          <ChartData id="week-data" data={weekChart} />
+        </details>
+      ) : null}
+
       {planned.length ? (
-        <section class="card">
-          <h2>
-            Real × planejado <a href={`/planejamento?mes=${month}`}>ver tudo</a>
-          </h2>
+        <details class="card fold" id="fold-plano" open>
+          <summary>
+            <span>Real × planejado</span>
+            <a href={`/planejamento?mes=${month}`}>ver tudo</a>
+          </summary>
           <canvas id="plan" data-src="plan-data" height={Math.max(140, planned.length * 34)}></canvas>
           <ChartData id="plan-data" data={planChart} />
           <p class="muted legendline">
             <i class="sw solid"></i> gasto <i class="sw faded"></i> planejado <i class="sw tick"></i> onde deveria estar hoje
           </p>
-        </section>
+        </details>
       ) : admin ? (
         <p class="muted">
           Sem valores planejados para este mês. <a href={`/planejamento?mes=${month}`}>Planejar</a>.
@@ -101,24 +122,27 @@ home.get("/", async (c) => {
       ) : null}
 
       {out.length ? (
-        <section class="card">
-          <h2>Para onde foi</h2>
+        <details class="card fold" id="fold-categorias" open>
+          <summary>
+            <span>Para onde foi</span>
+            <b class="neg">− {formatBRL(expense)}</b>
+          </summary>
           <div class="donutwrap">
             <canvas id="donut" data-src="donut-data"></canvas>
           </div>
           <ul class="legend">
-            {out.slice(0, 6).map((t) => (
+            {out.map((t) => (
               <li>
                 <i style={`background:${t.color ?? "#7d7d7d"}`}></i>
-                {t.name ?? "Sem categoria"}
+                <span>{t.name ?? "Sem categoria"}</span>
                 <b>{formatBRL(t.total)}</b>
               </li>
             ))}
           </ul>
           <ChartData id="donut-data" data={donut} />
-        </section>
+        </details>
       ) : null}
-      {out.length || planned.length ? <ChartJs /> : null}
+      {out.length || planned.length || isCurrent ? <ChartJs /> : null}
 
       <section>
         <h2>

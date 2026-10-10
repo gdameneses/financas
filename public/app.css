@@ -221,3 +221,26 @@ table.log td:not(:first-child), table.log th:not(:first-child) { text-align: lef
 .legendline { display: flex; gap: 14px; justify-content: center; align-items: center; font-size: .78rem; margin: 8px 0 0; }
 .sw { display: inline-block; width: 14px; height: 8px; border-radius: 2px; margin-right: 4px; vertical-align: middle; }
 .sw.solid { background: var(--fg-dim); } .sw.faded { background: var(--fg-dim); opacity: .3; } .sw.tick { width: 2px; height: 12px; background: var(--fg); }
+
+/* collapsible chart cards */
+details.fold { padding: 0; }
+details.fold > summary { display: flex; justify-content: space-between; align-items: center; padding: 12px 14px; color: var(--fg-dim); font-weight: 500; cursor: pointer; }
+details.fold > summary::after { content: none; }
+details.fold > summary span::before { content: "▸"; display: inline-block; width: 14px; font-size: .75rem; transition: transform .15s; color: var(--fg-faint); }
+details.fold[open] > summary span::before { transform: rotate(90deg); }
+details.fold > summary a { color: var(--fg-dim); font-weight: 400; font-size: .85rem; border-bottom: 1px solid var(--line-strong); }
+details.fold > summary b { font-weight: 500; }
+details.fold > :not(summary) { margin-left: 14px; margin-right: 14px; }
+details.fold > canvas, details.fold > .donutwrap { margin-top: 4px; }
+details.fold > .legend, details.fold > .legendline { margin-bottom: 14px; }
+@media (prefers-reduced-motion: reduce) { details.fold > summary span::before { transition: none; } }
+
+/* legend: never clip the amount */
+.legend li { overflow: visible; min-width: 0; }
+.legend li span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.legend li b { flex: none; margin-left: 8px; }
+@media (max-width: 380px) { .legend { grid-template-columns: 1fr; } }
+
+/* who added it */
+.who { width: 22px; height: 22px; border-radius: 50%; border: 1px solid var(--line-strong); color: var(--fg-dim); font-size: .7rem; font-weight: 600; display: grid; place-items: center; flex: none; }
+.who:empty { display: none; }
