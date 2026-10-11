@@ -7,7 +7,7 @@ Everything below stays on free tiers: Workers Free, D1 Free, Cloudflare Zero Tru
 ```sh
 npm install --legacy-peer-deps   # vitest 4's optional peer graph crashes npm's resolver; this flag skips it
 npm run migrate:local
-echo 'ENROLL_SECRET=choose-a-long-random-string' > .dev.vars
+cp .dev.vars.example .dev.vars   # set ADMIN_EMAILS to your own e-mail
 npm run dev                      # http://localhost:8787
 ```
 
@@ -22,13 +22,13 @@ required), set `LIBERADO=true` in `.dev.vars`. Never in production.
 To test from the phone on the same Wi-Fi: `npm run dev:lan` and open `http://<laptop-ip>:8787`.
 (Cookies are set without `Secure` over plain http, so this works; production is https-only.)
 
-## 2. Cloudflare account (personal)
+## 2. Cloudflare account
 
-The personal login lives in its own wrangler config dir so it never clashes with the Urlbox login on
-the same machine. Prefix every wrangler command with it (or `export` it in the shell):
+If this machine already has wrangler logged in to another Cloudflare account, keep this one in its own
+config dir so the two never clash. Prefix every wrangler command with it (or `export` it in the shell):
 
 ```sh
-export XDG_CONFIG_HOME=$HOME/.config/cf-personal
+export XDG_CONFIG_HOME=$HOME/.config/cf-personal   # optional, any directory works
 npx wrangler login
 npx wrangler d1 create finance
 ```
@@ -37,12 +37,18 @@ A brand-new account has no `workers.dev` subdomain yet; the first deploy prints 
 instead of a URL. Register one (dashboard → Workers & Pages, or
 `PUT /accounts/<id>/workers/subdomain {"subdomain":"<name>"}`) and deploy again.
 
-Copy the printed `database_id` into `wrangler.jsonc`, then:
+Copy the printed `database_id` into `wrangler.jsonc`, then set the app admins (comma-separated e-mails;
+they approve devices, manage IPs and users and read the access log) and deploy:
 
 ```sh
 npm run migrate:remote
+npx wrangler secret put ADMIN_EMAILS     # e.g. you@example.com,partner@example.com
 npx wrangler deploy
 ```
+
+`ADMIN_EMAILS` is a secret on purpose: keep it out of `wrangler.jsonc` so admin addresses never land in
+git. On a Worker that already exists you can upload it together with a deploy, so no version ever runs
+without it: `npx wrangler deploy --secrets-file <file with ADMIN_EMAILS=…>` (delete the file afterwards).
 
 Optional, to e-mail access codes to the admins (otherwise they are only shown in the app):
 create a free Brevo account, verify a sender address (a Gmail works), create an API key, then
@@ -109,7 +115,7 @@ núcleo 1, named **Casa**, and made every existing user its administrador. Renam
 ## 5. Reading reports with Claude Code
 
 Every report is available as JSON and Markdown (Relatórios → ⬇ links), and `Mais → Exportar tudo` dumps
-the whole database. Download the file and point Claude Code at it; the data is small enough to paste.
+the current núcleo's data (núcleo admins only). Download the file and point Claude Code at it; the data is small enough to paste.
 
 ## Free-tier numbers that matter
 
@@ -119,4 +125,4 @@ the whole database. Download the file and point Claude Code at it; the data is s
 | Workers CPU | 10 ms/request | login ≈ 3–5 ms (PBKDF2 25k iters), pages < 2 ms |
 | D1 writes | 100k rows/day | tens |
 | D1 storage | 5 GB | KB |
-| Zero Trust users | 50 | 1 |
+| Zero Trust users | 50 | a household |

@@ -1,0 +1,7 @@
+# Copy to .dev.vars (git-ignored) for `npm run dev`. Production sets these with `wrangler secret put`.
+ADMIN_EMAILS=you@example.com
+# "true" approves every browser on first visit (login still required). Never in production.
+LIBERADO=false
+# Optional: e-mail access codes to the admins through Brevo.
+# BREVO_API_KEY=
+# EMAIL_FROM=

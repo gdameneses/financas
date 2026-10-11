@@ -3,3 +3,5 @@ node_modules/
 .dev.vars
 dist/
 *.log
+# Private agent decision ledger (see docs/ARCHITECTURE.md for the public design notes)
+docs/DECISIONS.md
