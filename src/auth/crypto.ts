@@ -14,7 +14,7 @@ export async function sha256Hex(input: string): Promise<string> {
 }
 
 // Deliberately low for Workers Free (10 ms CPU/request). Access + device gate
-// carry the real weight; see docs/DECISIONS.md.
+// carry the real weight; see SECURITY.md.
 export const PBKDF2_ITERATIONS = 25_000;
 
 export async function hashPassword(
