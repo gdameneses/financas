@@ -8,7 +8,7 @@ type Props = {
   children: Child;
   /** Hide nav + add button on gate pages and full-screen forms. */
   bare?: boolean;
-  active?: "home" | "tx" | "plan" | "mais";
+  active?: "home" | "tx" | "plan" | "dividas" | "mais";
   toast?: string;
 };
 
@@ -31,7 +31,7 @@ export const Layout = ({ title, children, bare, active, toast }: Props) => (
         // Slide direction for the page transition + "just saved" flag, decided before first paint.
         (function () {
           try {
-            var TABS = ["/", "/transacoes", "/planejamento", "/mais"];
+            var TABS = ["/", "/transacoes", "/planejamento", "/dividas", "/mais"];
             var from = sessionStorage.getItem("fromTab"), here = TABS.indexOf(location.pathname), dir = "forward";
             if (from !== null && here >= 0 && Number(from) >= 0) dir = here > Number(from) ? "forward" : here < Number(from) ? "back" : "same";
             document.documentElement.dataset.dir = dir;
@@ -49,8 +49,11 @@ export const Layout = ({ title, children, bare, active, toast }: Props) => (
         <>
           <a class="fab" href="/nova" aria-label="Novo lançamento">
             <Icon name="plus" />
+            <span>Novo lançamento</span>
           </a>
+          {/* bottom tabs on a phone, left sidebar on a desktop (app.css) */}
           <nav class="tabs">
+            <span class="brand">Finanças</span>
             <a href="/" class={active === "home" ? "on" : ""}>
               Início
             </a>
@@ -59,6 +62,10 @@ export const Layout = ({ title, children, bare, active, toast }: Props) => (
             </a>
             <a href="/planejamento" class={active === "plan" ? "on" : ""}>
               Planejamento
+            </a>
+            {/* desktop sidebar only; on a phone Dívidas lives under Mais */}
+            <a href="/dividas" class={`desk ${active === "dividas" ? "on" : ""}`}>
+              Dívidas
             </a>
             <a href="/mais" class={active === "mais" ? "on" : ""}>
               Mais

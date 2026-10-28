@@ -182,7 +182,7 @@ relatorios.get("/", async (c) => {
       </>
     );
   } else if (tab === "recorrentes") {
-    const txs = await listTransactions(db, n);
+    const txs = await listTransactions(db, n, { semAjuste: true });
     const r = detectRecorrentes(txs, month);
     body = (
       <>

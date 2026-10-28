@@ -54,12 +54,12 @@ api.get("/report/tendencia.md", async (c) => {
 api.get("/report/recorrentes.json", async (c) => {
   const mes = monthParam(c.req.query("mes"));
   if (!mes) return c.text("mes inválido", 400);
-  return c.json(detectRecorrentes(await listTransactions(c.env.DB, c.get("nucleo").id), mes));
+  return c.json(detectRecorrentes(await listTransactions(c.env.DB, c.get("nucleo").id, { semAjuste: true }), mes));
 });
 api.get("/report/recorrentes.md", async (c) => {
   const mes = monthParam(c.req.query("mes"));
   if (!mes) return c.text("mes inválido", 400);
-  return md(recorrentesMarkdown(detectRecorrentes(await listTransactions(c.env.DB, c.get("nucleo").id), mes)), `recorrentes-${mes}`);
+  return md(recorrentesMarkdown(detectRecorrentes(await listTransactions(c.env.DB, c.get("nucleo").id, { semAjuste: true }), mes)), `recorrentes-${mes}`);
 });
 
 api.get("/report/orcamento/:file", async (c) => {

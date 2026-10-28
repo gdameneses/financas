@@ -59,3 +59,30 @@ export function weekdayLabel(date: string): string {
 export function daysBetween(a: string, b: string): number {
   return Math.round((Date.parse(b) - Date.parse(a)) / 86_400_000);
 }
+
+/** What a page shows: a calendar month (the default) or a period picked by hand. */
+export type Period = { kind: "mes"; month: string; from: string; to: string } | { kind: "periodo"; from: string; to: string };
+
+const MAX_PERIOD_DAYS = 366 * 5;
+
+/** `?de=&ate=` (both valid, de ≤ ate, at most five years) wins; otherwise `?mes=`, otherwise this month. */
+export function parsePeriod(q: { mes?: string; de?: string; ate?: string }, now = new Date()): Period {
+  const { de, ate } = q;
+  if (de && ate && isISODate(de) && isISODate(ate) && de <= ate && daysBetween(de, ate) <= MAX_PERIOD_DAYS) {
+    return { kind: "periodo", from: de, to: ate };
+  }
+  const month = q.mes && isMonth(q.mes) ? q.mes : currentMonth(now);
+  return { kind: "mes", month, ...monthRange(month) };
+}
+
+/** Query string that reproduces a period, for links that must keep it. */
+export function periodQuery(p: Period): string {
+  return p.kind === "mes" ? `mes=${p.month}` : `de=${p.from}&ate=${p.to}`;
+}
+
+/** "out/2026" for a month, "01/10/2026 – 15/10/2026" for a period. */
+export function periodLabel(p: Period): string {
+  if (p.kind === "mes") return monthLabel(p.month);
+  const full = (d: string) => `${dateLabel(d)}/${d.slice(0, 4)}`;
+  return `${full(p.from)} – ${full(p.to)}`;
+}

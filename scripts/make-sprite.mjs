@@ -11,6 +11,7 @@ export const ICONS = [
   "hammer", "users", "question",
   // chrome
   "plus", "caret-left", "caret-right", "shield-check", "sign-out", "download-simple", "trash", "check", "x", "lock-key", "users-three",
+  "scales", "calendar-blank", "chart-line-up",
 ];
 
 const parts = [];

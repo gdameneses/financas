@@ -66,7 +66,13 @@ const Group = ({ title, cats }: { title: string; cats: Category[] }) => (
             <a href={`/categorias/${cat.id}`}>
               <CatIcon icon={cat.icon} color={cat.color} />
               {cat.name}
-              {cat.is_preset ? <small class="badge">padrão</small> : null}
+              {cat.ajuste ? (
+                <small class="badge" title="Conta no saldo, fica fora dos gráficos e do planejamento">
+                  ajuste
+                </small>
+              ) : cat.is_preset ? (
+                <small class="badge">padrão</small>
+              ) : null}
             </a>
           </li>
         ))}

@@ -51,6 +51,65 @@
     form.querySelectorAll('input[name=note], input[name=date]').forEach(function (el) {
       el.addEventListener("keydown", function (e) { if (e.key === "Enter") { e.preventDefault(); el.blur(); } });
     });
+
+    // --- "continuar adicionando": fire and forget, the form is ready for the next entry at once ---
+    // Kind and date stay (a batch is usually one day's receipts); payee, amount, category and note clear.
+    // Failures are listed on the form so nothing is lost silently.
+    var keep = document.getElementById("keepgoing");
+    if (keep) {
+      try { if (localStorage.getItem("keepgoing") === "1") keep.checked = true; } catch (e) { /* ignore */ }
+      keep.addEventListener("change", function () {
+        try { localStorage.setItem("keepgoing", keep.checked ? "1" : "0"); } catch (e) { /* ignore */ }
+      });
+      var cancel = document.getElementById("txcancel");
+      var note = form.querySelector('input[name=note]');
+      var payeeList = document.getElementById("payees");
+      var sent = 0, pending = 0;
+      var status = document.createElement("p");
+      status.className = "muted bulkstatus";
+      status.setAttribute("aria-live", "polite");
+      form.querySelector(".submitbar").prepend(status);
+      var errBox = document.createElement("div");
+      errBox.className = "err bulkerr";
+      errBox.hidden = true;
+      form.prepend(errBox);
+      function showStatus() {
+        status.textContent = sent || pending ? sent + (sent === 1 ? " adicionado" : " adicionados") + (pending ? " · enviando " + pending : "") : "";
+      }
+      function failed(what, why) {
+        errBox.hidden = false;
+        var line = document.createElement("p");
+        line.textContent = "Não salvo: " + what + " (" + why + ")";
+        errBox.appendChild(line);
+      }
+      form.addEventListener("submit", function (e) {
+        if (!keep.checked) return; // ordinary submit, page navigates as before
+        e.preventDefault();
+        var what = (payee.value.trim() || "sem nome") + ", R$ " + amount.value;
+        var body = new URLSearchParams(new FormData(form));
+        pending++; showStatus();
+        fetch(form.action, { method: "POST", body: body, headers: { "x-fetch": "1" }, credentials: "same-origin", keepalive: true })
+          .then(function (r) {
+            if (r.redirected) throw new Error("sessão expirou, entre de novo");
+            return r.json().catch(function () { throw new Error("erro " + r.status); }).then(function (j) {
+              if (!r.ok) throw new Error(j.error || "erro " + r.status);
+              sent++;
+            });
+          })
+          .catch(function (err) { failed(what, err.message || "sem conexão"); })
+          .then(function () { pending--; showStatus(); });
+        // remember the payee for the autocomplete, then clear for the next one
+        var p = payee.value.trim();
+        if (p && payeeList && !Array.prototype.some.call(payeeList.options, function (o) { return o.value === p; })) {
+          var opt = document.createElement("option"); opt.value = p; payeeList.appendChild(opt);
+        }
+        payee.value = ""; amount.value = ""; if (note) note.value = "";
+        chips.forEach(function (ch) { ch.querySelector("input").checked = false; });
+        syncChips();
+        if (cancel) cancel.textContent = "Concluir";
+        payee.focus();
+      });
+    }
   }
 
   // kind toggle on the category create form (no filtering needed)
@@ -103,9 +162,9 @@
   // value never flattens the others. Only round ticks (1, 5 × 10^n) get a label.
   // Axis labels are illustration, not a report: whole reais, compact, powers of ten only, no grid.
   function compact(cents) {
-    var r = cents / 100;
-    if (r >= 1e6) return (r / 1e6).toLocaleString("pt-BR", { maximumFractionDigits: 1 }) + " mi";
-    if (r >= 1e3) return (r / 1e3).toLocaleString("pt-BR", { maximumFractionDigits: 1 }) + " mil";
+    var r = cents / 100, a = Math.abs(r); // the cash projection can go negative
+    if (a >= 1e6) return (r / 1e6).toLocaleString("pt-BR", { maximumFractionDigits: 1 }) + " mi";
+    if (a >= 1e3) return (r / 1e3).toLocaleString("pt-BR", { maximumFractionDigits: 1 }) + " mil";
     return r.toLocaleString("pt-BR", { maximumFractionDigits: 0 });
   }
   function logAxis(extra) {
@@ -152,7 +211,7 @@
     if (b) {
       made.push(new Chart(bars, {
         type: "bar",
-        data: { labels: b.labels, datasets: [{ data: b.values, backgroundColor: b.colors, borderRadius: 4 }] },
+        data: { labels: b.labels, datasets: [{ data: b.values, backgroundColor: b.colors, borderRadius: 0 }] },
         options: {
           indexAxis: "y",
           plugins: { legend: { display: false }, tooltip: { callbacks: { label: function (c) { return " " + brl(c.parsed.x); } } } },
@@ -167,7 +226,7 @@
         type: "bar",
         data: {
           labels: w.labels,
-          datasets: [{ label: "Saídas", data: w.expense, backgroundColor: outFg, borderRadius: 4 }],
+          datasets: [{ label: "Saídas", data: w.expense, backgroundColor: outFg, borderRadius: 0 }],
         },
         options: {
           maintainAspectRatio: false,
@@ -185,8 +244,8 @@
         data: {
           labels: p.labels,
           datasets: [
-            { label: "Planejado", data: p.planned, backgroundColor: faded, borderRadius: 4, barPercentage: 0.9, categoryPercentage: 0.9, grouped: false, order: 2 },
-            { label: "Gasto", data: p.actual, backgroundColor: p.colors, borderRadius: 4, barPercentage: 0.55, categoryPercentage: 0.9, grouped: false, order: 1 },
+            { label: "Planejado", data: p.planned, backgroundColor: faded, borderRadius: 0, barPercentage: 0.9, categoryPercentage: 0.9, grouped: false, order: 2 },
+            { label: "Gasto", data: p.actual, backgroundColor: p.colors, borderRadius: 0, barPercentage: 0.55, categoryPercentage: 0.9, grouped: false, order: 1 },
           ],
         },
         options: {
@@ -218,6 +277,23 @@
         }],
       }));
     }
+    var proj = document.getElementById("proj");
+    var pr = proj && data(proj.dataset.src);
+    if (pr) {
+      made.push(new Chart(proj, {
+        type: "line",
+        data: { labels: pr.labels, datasets: [{ label: "Caixa", data: pr.values, borderColor: fg, backgroundColor: fg, borderWidth: 1.5, pointRadius: 3, pointStyle: "rect", tension: 0 }] },
+        options: {
+          maintainAspectRatio: false,
+          plugins: { legend: { display: false }, tooltip: { callbacks: { label: function (c) { return " " + brl(c.parsed.y); } } } },
+          // Linear and not from zero: the slope between months is the message.
+          scales: {
+            y: { grid: { color: "rgba(128,128,128,.12)" }, border: { display: false }, ticks: { maxTicksLimit: 4, callback: function (v) { return compact(v); } } },
+            x: { grid: { display: false } },
+          },
+        },
+      }));
+    }
     var trend = document.getElementById("trend");
     var t = trend && data(trend.dataset.src);
     if (t) {
@@ -225,9 +301,9 @@
         data: {
           labels: t.labels,
           datasets: [
-            { type: "bar", label: "Entradas", data: t.income, backgroundColor: inFg, borderRadius: 4 },
-            { type: "bar", label: "Saídas", data: t.expense, backgroundColor: outFg, borderRadius: 4 },
-            { type: "line", label: "Saldo", data: t.net, borderColor: fg, backgroundColor: fg, borderWidth: 1.5, tension: .3, pointRadius: 2 },
+            { type: "bar", label: "Entradas", data: t.income, backgroundColor: inFg, borderRadius: 0 },
+            { type: "bar", label: "Saídas", data: t.expense, backgroundColor: outFg, borderRadius: 0 },
+            { type: "line", label: "Saldo", data: t.net, borderColor: fg, backgroundColor: fg, borderWidth: 1.5, tension: .3, pointRadius: 2.5, pointStyle: "rect" },
           ],
         },
         options: {

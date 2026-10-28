@@ -31,7 +31,7 @@ export async function buildMensal(db: D1Database, nucleoId: number, month: strin
   const [cur, prev, txs] = await Promise.all([
     totalsByCategory(db, nucleoId, month),
     totalsByCategory(db, nucleoId, prevMonth),
-    listTransactions(db, nucleoId, { month }),
+    listTransactions(db, nucleoId, { month, semAjuste: true }),
   ]);
 
   const sum = (rows: typeof cur, kind: Kind) => rows.filter((r) => r.kind === kind).reduce((a, r) => a + r.total, 0);

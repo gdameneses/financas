@@ -78,7 +78,7 @@ describe("núcleos: isolation", () => {
     const exp = (await (await ana.fetch("/api/export.json")).json()) as { nucleo: string; transactions: { payee: string }[]; categories: unknown[] };
     expect(exp.nucleo).toBe("Ana");
     expect(exp.transactions.map((t) => t.payee)).toEqual(["Café da Ana"]);
-    expect(exp.categories).toHaveLength(18);
+    expect(exp.categories).toHaveLength(20); // 18 presets + the two balance adjustments
     const mensal = (await (await gus.fetch("/api/report/mensal/2026-10.json")).json()) as { expense: number };
     expect(mensal.expense).toBe(10000);
   });

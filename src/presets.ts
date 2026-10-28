@@ -1,8 +1,8 @@
 // Preset categories every new núcleo starts with (pt-BR). `is_preset` only drives a badge; all deletable.
-// Mirrors what migrations 0001/0002/0004 seeded for núcleo 1.
+// Mirrors what migrations 0001/0002/0004/0006 seeded for núcleo 1.
 import type { Kind, Pace } from "./db";
 
-export type Preset = { name: string; kind: Kind; icon: string; color: string; pace: Pace; sort: number };
+export type Preset = { name: string; kind: Kind; icon: string; color: string; pace: Pace; sort: number; ajuste?: boolean };
 
 export const PRESETS: Preset[] = [
   { name: "Moradia", kind: "out", icon: "house", color: "#7a6f9a", pace: "fixo", sort: 1 },
@@ -23,9 +23,12 @@ export const PRESETS: Preset[] = [
   { name: "Investimentos", kind: "in", icon: "trend-up", color: "#7c6f9c", pace: "continuo", sort: 3 },
   { name: "Reembolso", kind: "in", icon: "arrow-u-up-left", color: "#5a8c93", pace: "continuo", sort: 4 },
   { name: "Outros", kind: "in", icon: "package", color: "#7d7d7d", pace: "continuo", sort: 5 },
+  // Balance adjustments (migration 0006): count in the balances, stay out of charts and planning.
+  { name: "Ajuste de saldo", kind: "out", icon: "scales", color: "#8d8872", pace: "livre", sort: 99, ajuste: true },
+  { name: "Ajuste de saldo", kind: "in", icon: "scales", color: "#8d8872", pace: "livre", sort: 99, ajuste: true },
 ];
 
 export async function seedPresets(db: D1Database, nucleoId: number): Promise<void> {
-  const stmt = db.prepare("INSERT INTO categories (nucleo_id, name, kind, icon, color, is_preset, sort, pace) VALUES (?, ?, ?, ?, ?, 1, ?, ?)");
-  await db.batch(PRESETS.map((p) => stmt.bind(nucleoId, p.name, p.kind, p.icon, p.color, p.sort, p.pace)));
+  const stmt = db.prepare("INSERT INTO categories (nucleo_id, name, kind, icon, color, is_preset, sort, pace, ajuste) VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?)");
+  await db.batch(PRESETS.map((p) => stmt.bind(nucleoId, p.name, p.kind, p.icon, p.color, p.sort, p.pace, p.ajuste ? 1 : 0)));
 }

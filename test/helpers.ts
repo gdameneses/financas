@@ -11,6 +11,7 @@ export async function resetDb(): Promise<void> {
   await env.DB.batch([
     // Children before parents: several tables reference users, devices and núcleos.
     env.DB.prepare("DELETE FROM alerts"),
+    env.DB.prepare("DELETE FROM debts"),
     env.DB.prepare("DELETE FROM access_log"),
     env.DB.prepare("DELETE FROM access_codes"),
     env.DB.prepare("DELETE FROM login_attempts"),

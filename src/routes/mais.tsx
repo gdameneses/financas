@@ -27,6 +27,13 @@ mais.get("/mais", async (c) => {
             {nucleo ? <small class="muted"> · {nucleo.name}</small> : <small class="badge new">criar ou entrar</small>}
           </a>
         </li>
+        {nucleo ? (
+          <li>
+            <a href="/dividas">
+              <Icon name="credit-card" /> Dívidas
+            </a>
+          </li>
+        ) : null}
         {nucleoAdmin ? (
           <>
             <li>

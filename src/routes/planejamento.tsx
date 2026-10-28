@@ -2,10 +2,10 @@
 import { Hono } from "hono";
 import type { AppEnv } from "../env";
 import { Layout } from "../pages/layout";
-import { CatIcon, MonthNav } from "../pages/bits";
-import { ensureBudgetsFor, listCategories, setBudget, type Pace } from "../db";
+import { CatIcon, Icon, MonthNav } from "../pages/bits";
+import { ensureBudgetsFor, listBudgetsYear, listCategories, setBudget, spentByMonthCategory, type Pace } from "../db";
 import { buildOrcamento, type OrcamentoLine } from "../reports/orcamento";
-import { currentMonth, isMonth } from "../lib/dates";
+import { currentMonth, isMonth, monthLabel } from "../lib/dates";
 import { formatBRL, parseBRL } from "../lib/money";
 import { requireNucleoAdmin } from "../middleware";
 
@@ -47,6 +47,17 @@ const Line = ({ l, canEdit }: { l: OrcamentoLine; canEdit: boolean }) => (
   </li>
 );
 
+const PlanTabs = ({ on, month }: { on: "mes" | "ano"; month: string }) => (
+  <nav class="subtabs">
+    <a href={`/planejamento?mes=${month}`} class={on === "mes" ? "on" : ""}>
+      Mês
+    </a>
+    <a href={`/planejamento/anual?ano=${month.slice(0, 4)}`} class={on === "ano" ? "on" : ""}>
+      Ano
+    </a>
+  </nav>
+);
+
 planejamento.get("/", async (c) => {
   const q = c.req.query("mes");
   const month = q && isMonth(q) ? q : currentMonth();
@@ -55,7 +66,8 @@ planejamento.get("/", async (c) => {
   if (admin) await ensureBudgetsFor(c.env.DB, n, month);
   const [rep, cats] = await Promise.all([buildOrcamento(c.env.DB, n, month), listCategories(c.env.DB, n)]);
   const planned = new Set(rep.lines.map((l) => l.category_id));
-  const notPlanned = cats.filter((x) => x.kind === "out" && !planned.has(x.id));
+  // Balance adjustments are not spending: they never get a cap.
+  const notPlanned = cats.filter((x) => x.kind === "out" && !x.ajuste && !planned.has(x.id));
   const over = rep.total_spent > rep.total_cap;
   const body = (
     <>
@@ -110,6 +122,7 @@ planejamento.get("/", async (c) => {
   );
   return c.html(
     <Layout title="Planejamento" active="plan" toast={c.req.query("ok") ?? undefined}>
+      <PlanTabs on="mes" month={month} />
       <MonthNav month={month} base="/planejamento" />
       {admin ? (
         <form method="post" action={`/planejamento?mes=${month}`} class="stack">
@@ -135,7 +148,7 @@ planejamento.post("/", requireNucleoAdmin, async (c) => {
   const form = await c.req.parseBody();
   const cats = await listCategories(c.env.DB, n);
   for (const cat of cats) {
-    if (cat.kind !== "out") continue;
+    if (cat.kind !== "out" || cat.ajuste) continue;
     const raw = form[`cap_${cat.id}`];
     if (raw === undefined) continue;
     const cents = String(raw).trim() === "" ? 0 : parseBRL(String(raw));
@@ -143,4 +156,93 @@ planejamento.post("/", requireNucleoAdmin, async (c) => {
     await setBudget(c.env.DB, n, cat.id, month, cents);
   }
   return c.redirect(`/planejamento?mes=${month}&ok=${encodeURIComponent("Planejamento salvo")}`);
+});
+
+// Annual view: planned × spent per category for the twelve months of a year. Read-only; caps are
+// still set month by month on the monthly screen (each month links there).
+planejamento.get("/anual", async (c) => {
+  const q = c.req.query("ano");
+  const year = q && /^\d{4}$/.test(q) ? q : currentMonth().slice(0, 4);
+  const n = c.get("nucleo").id;
+  const [cats, budgets, spent] = await Promise.all([listCategories(c.env.DB, n), listBudgetsYear(c.env.DB, n, year), spentByMonthCategory(c.env.DB, n, year)]);
+  const months = Array.from({ length: 12 }, (_, i) => `${year}-${String(i + 1).padStart(2, "0")}`);
+  const cap = (id: number | null, m: string) => (id === null ? 0 : (budgets.find((b) => b.category_id === id && b.month === m)?.cap_cents ?? 0));
+  const got = (id: number | null, m: string) => spent.find((x) => x.category_id === id && x.month === m)?.total ?? 0;
+  type Row = { id: number | null; name: string; icon: string | null; color: string | null };
+  const rows: Row[] = cats
+    .filter((x) => x.kind === "out" && !x.ajuste)
+    .filter((x) => budgets.some((b) => b.category_id === x.id) || spent.some((t) => t.category_id === x.id))
+    .map((x) => ({ id: x.id, name: x.name, icon: x.icon, color: x.color }));
+  if (spent.some((t) => t.category_id === null)) rows.push({ id: null, name: "Sem categoria", icon: "question", color: null });
+  const sum = (f: (m: string) => number) => months.reduce((a, m) => a + f(m), 0);
+  const capYear = rows.reduce((a, r) => a + sum((m) => cap(r.id, m)), 0);
+  const spentYear = rows.reduce((a, r) => a + sum((m) => got(r.id, m)), 0);
+  const cur = currentMonth();
+  const Cell = ({ s: sp, p: pl, m }: { s: number; p: number; m?: string }) => (
+    <td class={`${pl && sp > pl ? "over" : ""} ${m && m > cur ? "future" : ""}`}>
+      {sp ? formatBRL(sp) : "—"}
+      <small>{pl ? formatBRL(pl) : ""}</small>
+    </td>
+  );
+  return c.html(
+    <Layout title="Planejamento anual" active="plan">
+      <PlanTabs on="ano" month={year === cur.slice(0, 4) ? cur : `${year}-01`} />
+      <div class="monthnav">
+        <a href={`/planejamento/anual?ano=${Number(year) - 1}`} aria-label="Ano anterior">
+          <Icon name="caret-left" />
+        </a>
+        <span>{year}</span>
+        <a href={`/planejamento/anual?ano=${Number(year) + 1}`} aria-label="Próximo ano">
+          <Icon name="caret-right" />
+        </a>
+      </div>
+      <section class="hero small">
+        <small>{spentYear > capYear && capYear ? "Passou do planejado no ano" : "Gasto no ano"}</small>
+        <h1 class={capYear && spentYear > capYear ? "neg" : ""}>{formatBRL(spentYear)}</h1>
+        <small>planejado no ano {formatBRL(capYear)}</small>
+      </section>
+      {rows.length ? (
+        <div class="tablewrap">
+          <table class="rep annual">
+            <thead>
+              <tr>
+                <th>Categoria</th>
+                {months.map((m) => (
+                  <th>
+                    <a href={`/planejamento?mes=${m}`}>{monthLabel(m).slice(0, 3)}</a>
+                  </th>
+                ))}
+                <th>Total</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((r) => (
+                <tr>
+                  <td>
+                    <CatIcon icon={r.icon} color={r.color} /> {r.name}
+                  </td>
+                  {months.map((m) => (
+                    <Cell s={got(r.id, m)} p={cap(r.id, m)} m={m} />
+                  ))}
+                  <Cell s={sum((m) => got(r.id, m))} p={sum((m) => cap(r.id, m))} />
+                </tr>
+              ))}
+            </tbody>
+            <tfoot>
+              <tr>
+                <td>Total</td>
+                {months.map((m) => (
+                  <Cell s={rows.reduce((a, r) => a + got(r.id, m), 0)} p={rows.reduce((a, r) => a + cap(r.id, m), 0)} m={m} />
+                ))}
+                <Cell s={spentYear} p={capYear} />
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+      ) : (
+        <p class="muted">Nada planejado nem gasto em {year}.</p>
+      )}
+      <p class="muted">Em cada célula: gasto em cima, planejado embaixo; vermelho quando passou. Clique no mês para planejar.</p>
+    </Layout>,
+  );
 });

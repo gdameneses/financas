@@ -17,7 +17,16 @@ export type Category = {
   is_preset: number;
   sort: number;
   pace: Pace;
+  /** 1 = balance adjustment: counts in the balances, stays out of charts, planning, alerts and reports. */
+  ajuste: number;
 };
+
+/** Inclusive date range, YYYY-MM-DD. */
+export type Range = { from: string; to: string };
+const toRange = (p: string | Range): Range => (typeof p === "string" ? monthRange(p) : p);
+
+// Rows whose category is a balance adjustment are left out of every total below.
+const NOT_AJUSTE = "(t.category_id IS NULL OR t.category_id NOT IN (SELECT id FROM categories WHERE ajuste = 1))";
 
 export type Transaction = {
   id: number;
@@ -37,13 +46,14 @@ export type TransactionView = Transaction & {
   category_name: string | null;
   category_icon: string | null;
   category_color: string | null;
+  category_ajuste: number | null;
   /** e-mail of who added it (shared ledger); null for rows older than v2 */
   user_email: string | null;
 };
 
 export type Budget = { category_id: number; month: string; cap_cents: number };
 
-const TX_VIEW = `SELECT t.*, c.name AS category_name, c.icon AS category_icon, c.color AS category_color, u.email AS user_email
+const TX_VIEW = `SELECT t.*, c.name AS category_name, c.icon AS category_icon, c.color AS category_color, c.ajuste AS category_ajuste, u.email AS user_email
   FROM transactions t LEFT JOIN categories c ON c.id = t.category_id LEFT JOIN users u ON u.id = t.user_id`;
 
 export async function listCategories(db: D1Database, nucleoId: number): Promise<Category[]> {
@@ -94,15 +104,16 @@ export async function deleteCategory(db: D1Database, nucleoId: number, id: numbe
 export async function listTransactions(
   db: D1Database,
   nucleoId: number,
-  opts: { month?: string; categoryId?: number | null; limit?: number } = {},
+  opts: { month?: string; range?: Range; categoryId?: number | null; limit?: number; semAjuste?: boolean } = {},
 ): Promise<TransactionView[]> {
   const where: string[] = ["t.nucleo_id = ?"];
   const binds: unknown[] = [nucleoId];
-  if (opts.month) {
-    const { from, to } = monthRange(opts.month);
+  const range = opts.range ?? (opts.month ? monthRange(opts.month) : null);
+  if (range) {
     where.push("t.date BETWEEN ? AND ?");
-    binds.push(from, to);
+    binds.push(range.from, range.to);
   }
+  if (opts.semAjuste) where.push(NOT_AJUSTE);
   if (opts.categoryId === null) where.push("t.category_id IS NULL");
   else if (opts.categoryId !== undefined) {
     where.push("t.category_id = ?");
@@ -153,17 +164,42 @@ export type CategoryTotal = {
   count: number;
 };
 
-export async function totalsByCategory(db: D1Database, nucleoId: number, month: string): Promise<CategoryTotal[]> {
-  const { from, to } = monthRange(month);
+/** Totals per category for a month (YYYY-MM) or a date range. Balance adjustments are left out. */
+export async function totalsByCategory(db: D1Database, nucleoId: number, period: string | Range): Promise<CategoryTotal[]> {
+  const { from, to } = toRange(period);
   const r = await db
     .prepare(
       `SELECT t.category_id, c.name, c.icon, c.color, t.kind, SUM(t.amount_cents) AS total, COUNT(*) AS count
        FROM transactions t LEFT JOIN categories c ON c.id = t.category_id
-       WHERE t.nucleo_id = ? AND t.date BETWEEN ? AND ? GROUP BY t.category_id, t.kind ORDER BY total DESC`,
+       WHERE t.nucleo_id = ? AND t.date BETWEEN ? AND ? AND ${NOT_AJUSTE} GROUP BY t.category_id, t.kind ORDER BY total DESC`,
     )
     .bind(nucleoId, from, to)
     .all<CategoryTotal>();
   return r.results;
+}
+
+/** Balance adjustments in a period, each direction on its own. */
+export async function ajustesTotal(db: D1Database, nucleoId: number, period: string | Range): Promise<{ in: number; out: number }> {
+  const { from, to } = toRange(period);
+  const r = await db
+    .prepare(
+      `SELECT COALESCE(SUM(CASE WHEN t.kind = 'in' THEN t.amount_cents END), 0) AS "in",
+              COALESCE(SUM(CASE WHEN t.kind = 'out' THEN t.amount_cents END), 0) AS "out"
+       FROM transactions t JOIN categories c ON c.id = t.category_id
+       WHERE t.nucleo_id = ? AND t.date BETWEEN ? AND ? AND c.ajuste = 1`,
+    )
+    .bind(nucleoId, from, to)
+    .first<{ in: number; out: number }>();
+  return { in: r?.in ?? 0, out: r?.out ?? 0 };
+}
+
+/** Cash on hand: everything that ever came in minus everything that went out up to `upTo`, adjustments included. */
+export async function cashBalance(db: D1Database, nucleoId: number, upTo: string): Promise<number> {
+  const r = await db
+    .prepare("SELECT COALESCE(SUM(CASE WHEN kind = 'in' THEN amount_cents ELSE -amount_cents END), 0) AS n FROM transactions WHERE nucleo_id = ? AND date <= ?")
+    .bind(nucleoId, upTo)
+    .first<{ n: number }>();
+  return r?.n ?? 0;
 }
 
 export type DayTotal = { date: string; income: number; expense: number; count: number };
@@ -176,7 +212,7 @@ export async function totalsByDay(db: D1Database, nucleoId: number, from: string
          SUM(CASE WHEN kind = 'in' THEN amount_cents ELSE 0 END) AS income,
          SUM(CASE WHEN kind = 'out' THEN amount_cents ELSE 0 END) AS expense,
          COUNT(*) AS count
-       FROM transactions WHERE nucleo_id = ? AND date BETWEEN ? AND ? GROUP BY date ORDER BY date`,
+       FROM transactions t WHERE t.nucleo_id = ? AND t.date BETWEEN ? AND ? AND ${NOT_AJUSTE} GROUP BY date ORDER BY date`,
     )
     .bind(nucleoId, from, to)
     .all<DayTotal>();
@@ -191,10 +227,32 @@ export async function totalsByMonth(db: D1Database, nucleoId: number, fromMonth:
       `SELECT substr(date, 1, 7) AS month,
          SUM(CASE WHEN kind = 'in' THEN amount_cents ELSE 0 END) AS income,
          SUM(CASE WHEN kind = 'out' THEN amount_cents ELSE 0 END) AS expense
-       FROM transactions WHERE nucleo_id = ? AND substr(date, 1, 7) BETWEEN ? AND ? GROUP BY month ORDER BY month`,
+       FROM transactions t WHERE t.nucleo_id = ? AND substr(t.date, 1, 7) BETWEEN ? AND ? AND ${NOT_AJUSTE} GROUP BY month ORDER BY month`,
     )
     .bind(nucleoId, fromMonth, toMonth)
     .all<MonthTotal>();
+  return r.results;
+}
+
+/** Spending per category per month of a year (planning, annual view). Adjustments left out. */
+export async function spentByMonthCategory(db: D1Database, nucleoId: number, year: string): Promise<{ month: string; category_id: number | null; total: number }[]> {
+  const r = await db
+    .prepare(
+      `SELECT substr(t.date, 1, 7) AS month, t.category_id, SUM(t.amount_cents) AS total
+       FROM transactions t WHERE t.nucleo_id = ? AND t.kind = 'out' AND substr(t.date, 1, 4) = ? AND ${NOT_AJUSTE}
+       GROUP BY month, t.category_id`,
+    )
+    .bind(nucleoId, year)
+    .all<{ month: string; category_id: number | null; total: number }>();
+  return r.results;
+}
+
+/** Every budget of a year, for the annual view. */
+export async function listBudgetsYear(db: D1Database, nucleoId: number, year: string): Promise<Budget[]> {
+  const r = await db
+    .prepare("SELECT b.* FROM budgets b JOIN categories c ON c.id = b.category_id WHERE c.nucleo_id = ? AND substr(b.month, 1, 4) = ?")
+    .bind(nucleoId, year)
+    .all<Budget>();
   return r.results;
 }
 
@@ -272,4 +330,54 @@ export async function exportAll(db: D1Database, nucleoId: number) {
     transactions: transactions.results,
     budgets: budgets.results,
   };
+}
+
+// ---- debts (dívidas): balance updated by hand, nothing deducts it automatically ----
+
+export type Debt = {
+  id: number;
+  nucleo_id: number;
+  name: string;
+  creditor: string;
+  balance_cents: number;
+  installment_cents: number;
+  due_day: number | null;
+  /** basis points per month: 1,99 % a.m. = 199; null when unknown */
+  interest_bp: number | null;
+  note: string;
+  created_at: string;
+  updated_at: string;
+};
+
+export type DebtInput = Pick<Debt, "name" | "creditor" | "balance_cents" | "installment_cents" | "due_day" | "interest_bp" | "note">;
+
+export async function listDebts(db: D1Database, nucleoId: number): Promise<Debt[]> {
+  const r = await db.prepare("SELECT * FROM debts WHERE nucleo_id = ? ORDER BY balance_cents = 0, balance_cents DESC, id").bind(nucleoId).all<Debt>();
+  return r.results;
+}
+
+export async function getDebt(db: D1Database, nucleoId: number, id: number): Promise<Debt | null> {
+  return db.prepare("SELECT * FROM debts WHERE id = ? AND nucleo_id = ?").bind(id, nucleoId).first<Debt>();
+}
+
+export async function createDebt(db: D1Database, nucleoId: number, d: DebtInput): Promise<number> {
+  const r = await db
+    .prepare("INSERT INTO debts (nucleo_id, name, creditor, balance_cents, installment_cents, due_day, interest_bp, note) VALUES (?, ?, ?, ?, ?, ?, ?, ?)")
+    .bind(nucleoId, d.name, d.creditor, d.balance_cents, d.installment_cents, d.due_day, d.interest_bp, d.note)
+    .run();
+  return Number(r.meta.last_row_id);
+}
+
+export async function updateDebt(db: D1Database, nucleoId: number, id: number, d: DebtInput): Promise<void> {
+  await db
+    .prepare(
+      `UPDATE debts SET name = ?, creditor = ?, balance_cents = ?, installment_cents = ?, due_day = ?, interest_bp = ?, note = ?,
+       updated_at = datetime('now') WHERE id = ? AND nucleo_id = ?`,
+    )
+    .bind(d.name, d.creditor, d.balance_cents, d.installment_cents, d.due_day, d.interest_bp, d.note, id, nucleoId)
+    .run();
+}
+
+export async function deleteDebt(db: D1Database, nucleoId: number, id: number): Promise<void> {
+  await db.prepare("DELETE FROM debts WHERE id = ? AND nucleo_id = ?").bind(id, nucleoId).run();
 }

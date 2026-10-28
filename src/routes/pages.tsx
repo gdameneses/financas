@@ -9,6 +9,7 @@ import { relatorios } from "./relatorios";
 import { mais } from "./mais";
 import { admin } from "./admin";
 import { nucleos } from "./nucleos";
+import { dividas } from "./dividas";
 
 export const app = new Hono<AppEnv>();
 
@@ -25,6 +26,7 @@ app.use("*", requireNucleo);
 app.route("/", home);
 app.route("/", transacoes);
 app.route("/planejamento", planejamento);
+app.route("/", dividas);
 app.get("/orcamento", (c) => c.redirect("/planejamento" + (c.req.query("mes") ? `?mes=${c.req.query("mes")}` : "")));
 
 // Núcleo admins only: categories and reports.

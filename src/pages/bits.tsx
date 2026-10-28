@@ -1,7 +1,7 @@
 // Small view pieces shared by several pages.
 import { html, raw } from "hono/html";
 import type { TransactionView } from "../db";
-import { addMonths, dateLabel, monthLabel } from "../lib/dates";
+import { addMonths, dateLabel, monthLabel, periodLabel, type Period } from "../lib/dates";
 import { formatBRL } from "../lib/money";
 
 /** Flat icon from the inlined Phosphor sprite. */
@@ -29,6 +29,62 @@ export const MonthNav = ({ month, base }: { month: string; base: string }) => {
       <a href={`${base}${sep}mes=${addMonths(month, 1)}`} aria-label="Próximo mês">
         <Icon name="caret-right" />
       </a>
+    </div>
+  );
+};
+
+/**
+ * Month arrows (the default) plus a "Período" picker for any from–to range. `keep` are extra
+ * query parameters the page must not lose (e.g. the category filter).
+ */
+export const PeriodNav = ({ period, base, keep = {} }: { period: Period; base: string; keep?: Record<string, string> }) => {
+  const extra = Object.entries(keep)
+    .map(([k, v]) => `&${k}=${encodeURIComponent(v)}`)
+    .join("");
+  const backMonth = period.kind === "mes" ? period.month : period.to.slice(0, 7);
+  return (
+    <div class="periodnav">
+      {period.kind === "mes" ? (
+        <div class="monthnav">
+          <a href={`${base}?mes=${addMonths(period.month, -1)}${extra}`} aria-label="Mês anterior">
+            <Icon name="caret-left" />
+          </a>
+          <span>{monthLabel(period.month)}</span>
+          <a href={`${base}?mes=${addMonths(period.month, 1)}${extra}`} aria-label="Próximo mês">
+            <Icon name="caret-right" />
+          </a>
+        </div>
+      ) : (
+        <div class="monthnav period">
+          <span>
+            <Icon name="calendar-blank" /> {periodLabel(period)}
+          </span>
+          <a href={`${base}?mes=${backMonth}${extra}`} class="btn small ghost">
+            Voltar ao mês
+          </a>
+        </div>
+      )}
+      <details class="periodpick">
+        <summary>
+          <Icon name="calendar-blank" /> {period.kind === "mes" ? "Escolher período" : "Mudar período"}
+        </summary>
+        <form method="get" action={base} class="row">
+          {Object.entries(keep).map(([k, v]) => (
+            <input type="hidden" name={k} value={v} />
+          ))}
+          <label>
+            De
+            <input type="date" name="de" value={period.from} required />
+          </label>
+          <label>
+            Até
+            <input type="date" name="ate" value={period.to} required />
+          </label>
+          <button type="submit" class="btn small">
+            Ver
+          </button>
+        </form>
+      </details>
     </div>
   );
 };

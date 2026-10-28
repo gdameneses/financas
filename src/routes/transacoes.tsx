@@ -2,7 +2,7 @@ import { Hono } from "hono";
 import type { AppEnv } from "../env";
 import { Layout } from "../pages/layout";
 import { parseId } from "../middleware";
-import { CatIcon, Icon, MonthNav, TxList } from "../pages/bits";
+import { CatIcon, Icon, PeriodNav, TxList } from "../pages/bits";
 import {
   createTransaction,
   deleteTransaction,
@@ -16,8 +16,8 @@ import {
   type TransactionView,
   type TxInput,
 } from "../db";
-import { currentMonth, isISODate, isMonth, todayISO } from "../lib/dates";
-import { parseBRL } from "../lib/money";
+import { isISODate, parsePeriod, todayISO } from "../lib/dates";
+import { formatBRL, parseBRL } from "../lib/money";
 
 export const transacoes = new Hono<AppEnv>();
 
@@ -27,11 +27,13 @@ type FormProps = {
   tx?: TransactionView;
   error?: string;
   back: string;
+  /** New entries only: "continuar adicionando" starts ticked (came back from a bulk add without JS). */
+  keepGoing?: boolean;
 };
 
 // Order is deliberate: who → how much → which category. Enter on "Destinatário" moves to the
 // amount; Enter on the amount drops the keyboard so the category grid is visible (see app.js).
-const TxForm = ({ cats, payees, tx, error, back }: FormProps) => {
+const TxForm = ({ cats, payees, tx, error, back, keepGoing }: FormProps) => {
   const kind: Kind = tx?.kind ?? "out";
   const amount = tx ? (tx.amount_cents / 100).toFixed(2).replace(".", ",") : "";
   return (
@@ -96,9 +98,14 @@ const TxForm = ({ cats, payees, tx, error, back }: FormProps) => {
       </details>
       <div class="submitbar">
         <div class="actions">
-          <a href={back} class="btn ghost">
+          <a href={back} class="btn ghost" id="txcancel">
             Cancelar
           </a>
+          {tx ? null : (
+            <label class="check keepgoing">
+              <input type="checkbox" name="continuar" value="1" id="keepgoing" checked={keepGoing} /> Continuar adicionando
+            </label>
+          )}
           <button type="submit" class="btn primary">
             {tx ? "Salvar" : "Adicionar"}
           </button>
@@ -140,43 +147,63 @@ transacoes.get("/nova", async (c) => {
   const n = c.get("nucleo").id;
   const [cats, payees] = await Promise.all([listCategories(c.env.DB, n), listPayees(c.env.DB, n)]);
   return c.html(
-    <Layout title="Novo lançamento" bare>
+    <Layout title="Novo lançamento" bare toast={c.req.query("ok") ?? undefined}>
       <h1>Novo lançamento</h1>
-      <TxForm cats={cats} payees={payees} back="/" />
+      <TxForm cats={cats} payees={payees} back="/" keepGoing={c.req.query("continuar") === "1"} />
     </Layout>,
   );
 });
+
+// "Continuar adicionando" with JS: app.js posts in the background with this header and does not wait
+// for the page. A custom header also means a cross-site form can never take this path.
+const isBackground = (c: { req: { header: (n: string) => string | undefined } }) => c.req.header("x-fetch") === "1";
 
 transacoes.post("/nova", async (c) => {
   const n = c.get("nucleo").id;
   const [cats, payees, form] = await Promise.all([listCategories(c.env.DB, n), listPayees(c.env.DB, n), c.req.parseBody()]);
   const parsed = parseTxForm(form, cats);
+  const keepGoing = form.continuar === "1";
   if (!parsed.ok) {
+    if (isBackground(c)) return c.json({ error: parsed.error }, 400);
     return c.html(
       <Layout title="Novo lançamento" bare>
         <h1>Novo lançamento</h1>
-        <TxForm cats={cats} payees={payees} error={parsed.error} back="/" />
+        <TxForm cats={cats} payees={payees} error={parsed.error} back="/" keepGoing={keepGoing} />
       </Layout>,
       400,
     );
   }
-  await createTransaction(c.env.DB, n, parsed.tx, c.get("user").id);
-  return c.redirect(`/?mes=${parsed.tx.date.slice(0, 7)}&ok=${encodeURIComponent("Lançamento adicionado")}`);
+  const id = await createTransaction(c.env.DB, n, parsed.tx, c.get("user").id);
+  if (isBackground(c)) return c.json({ id }, 201);
+  const ok = encodeURIComponent("Lançamento adicionado");
+  // Without JS the box still works: back to an empty form, box ticked, instead of the home page.
+  if (keepGoing) return c.redirect(`/nova?continuar=1&ok=${ok}`);
+  return c.redirect(`/?mes=${parsed.tx.date.slice(0, 7)}&ok=${ok}`);
 });
 
 transacoes.get("/transacoes", async (c) => {
-  const q = c.req.query("mes");
-  const month = q && isMonth(q) ? q : currentMonth();
+  const period = parsePeriod({ mes: c.req.query("mes"), de: c.req.query("de"), ate: c.req.query("ate") });
   const catQ = c.req.query("cat");
   const categoryId = catQ === "none" ? null : catQ ? Number(catQ) : undefined;
   const n = c.get("nucleo").id;
-  const [txs, cats] = await Promise.all([listTransactions(c.env.DB, n, { month, categoryId }), listCategories(c.env.DB, n)]);
-  const base = catQ ? `/transacoes?cat=${catQ}` : "/transacoes";
+  const [txs, cats] = await Promise.all([
+    listTransactions(c.env.DB, n, { range: { from: period.from, to: period.to }, categoryId }),
+    listCategories(c.env.DB, n),
+  ]);
+  const inTotal = txs.filter((t) => t.kind === "in").reduce((a, t) => a + t.amount_cents, 0);
+  const outTotal = txs.filter((t) => t.kind === "out").reduce((a, t) => a + t.amount_cents, 0);
   return c.html(
     <Layout title="Lançamentos" active="tx" toast={c.req.query("ok") ?? undefined}>
-      <MonthNav month={month} base={base} />
+      <PeriodNav period={period} base="/transacoes" keep={catQ ? { cat: catQ } : {}} />
       <form method="get" action="/transacoes" class="filter">
-        <input type="hidden" name="mes" value={month} />
+        {period.kind === "mes" ? (
+          <input type="hidden" name="mes" value={period.month} />
+        ) : (
+          <>
+            <input type="hidden" name="de" value={period.from} />
+            <input type="hidden" name="ate" value={period.to} />
+          </>
+        )}
         <select name="cat" onchange="this.form.submit()">
           <option value="">Todas as categorias</option>
           <option value="none" selected={catQ === "none"}>
@@ -185,11 +212,21 @@ transacoes.get("/transacoes", async (c) => {
           {cats.map((cat) => (
             <option value={cat.id} selected={catQ === String(cat.id)}>
               {cat.name}
+              {cat.ajuste ? (cat.kind === "in" ? " (entrada)" : " (saída)") : ""}
             </option>
           ))}
         </select>
       </form>
-      <TxList txs={txs} empty={catQ ? "Nenhum lançamento nessa categoria neste mês." : "Nenhum lançamento neste mês. Toque em + para começar."} />
+      {txs.length ? (
+        <p class="inout listtotal">
+          <span class="in">+ {formatBRL(inTotal)}</span>
+          <span class="out">− {formatBRL(outTotal)}</span>
+          <span class="muted">
+            {txs.length} {txs.length === 1 ? "lançamento" : "lançamentos"}
+          </span>
+        </p>
+      ) : null}
+      <TxList txs={txs} empty={catQ ? "Nenhum lançamento nessa categoria neste período." : "Nenhum lançamento neste período. Toque em + para começar."} />
     </Layout>,
   );
 });
