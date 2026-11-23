@@ -2,6 +2,7 @@
 // Every ledger query is scoped to one núcleo (`nucleoId`, always the first argument after `db`):
 // a row from another núcleo is "not found", never a 403 that confirms it exists.
 import { monthRange } from "./lib/dates";
+import type { Aprendido, Contexto, Existente } from "./lib/importacao";
 
 export type Kind = "in" | "out";
 /** How spend accrues inside a month; drives which budget alerts make sense. */
@@ -380,4 +381,102 @@ export async function updateDebt(db: D1Database, nucleoId: number, id: number, d
 
 export async function deleteDebt(db: D1Database, nucleoId: number, id: number): Promise<void> {
   await db.prepare("DELETE FROM debts WHERE id = ? AND nucleo_id = ?").bind(id, nucleoId).run();
+}
+
+// ---- statement import (src/lib/importacao.ts decides, this reads and writes) ----
+
+/** Everything the analysis needs about the núcleo, for statement rows dated `from`..`to`. */
+export async function importContext(db: D1Database, nucleoId: number, from: string, to: string): Promise<Contexto> {
+  const [existentes, importados, ignorados, titulares, aprendido, inicio] = await db.batch([
+    db
+      .prepare(
+        `SELECT t.id, t.date, t.kind, t.amount_cents, t.payee, c.name AS category_name, t.import_ref
+         FROM transactions t LEFT JOIN categories c ON c.id = t.category_id
+         WHERE t.nucleo_id = ? AND t.date BETWEEN ? AND ? ORDER BY t.id`,
+      )
+      .bind(nucleoId, from, to),
+    db.prepare("SELECT import_ref FROM transactions WHERE nucleo_id = ? AND import_ref IS NOT NULL").bind(nucleoId),
+    db.prepare("SELECT ref FROM import_ignored WHERE nucleo_id = ?").bind(nucleoId),
+    db.prepare("SELECT nome FROM nucleo_titulares WHERE nucleo_id = ?").bind(nucleoId),
+    // oldest first, so the newest entry of a counterparty is the one that sticks
+    db.prepare("SELECT import_desc, category_id, payee, kind FROM transactions WHERE nucleo_id = ? AND import_desc IS NOT NULL ORDER BY id").bind(nucleoId),
+    db.prepare("SELECT MIN(date) AS d FROM transactions WHERE nucleo_id = ?").bind(nucleoId),
+  ]);
+  const map = new Map<string, Aprendido>();
+  for (const r of aprendido.results as (Aprendido & { import_desc: string })[]) {
+    map.set(r.import_desc, { category_id: r.category_id, payee: r.payee, kind: r.kind });
+  }
+  return {
+    existentes: existentes.results as Existente[],
+    importados: new Set((importados.results as { import_ref: string }[]).map((r) => r.import_ref)),
+    ignorados: new Set((ignorados.results as { ref: string }[]).map((r) => r.ref)),
+    titulares: new Set((titulares.results as { nome: string }[]).map((r) => r.nome)),
+    aprendido: map,
+    inicio: (inicio.results[0] as { d: string | null } | undefined)?.d ?? null,
+  };
+}
+
+export type ImportPlan = {
+  /** new entries */
+  novos: { date: string; cents: number; kind: Kind; cat: number | null; payee: string; ref: string; desc: string }[];
+  /** existing entries that turned out to be a statement row: they only gain its fingerprint */
+  vinculos: { id: number; ref: string; desc: string }[];
+  /** rows left out on purpose */
+  ignorar: string[];
+  /** rows left out before and imported now */
+  reviver: string[];
+  /** holder names to remember, already normalised */
+  titulares: string[];
+};
+
+/**
+ * One atomic batch, one statement per kind of write whatever the number of rows (the rows travel
+ * as a JSON array): a statement of 300 rows costs the same five queries as one of 3.
+ */
+export async function applyImport(db: D1Database, nucleoId: number, userId: number, plan: ImportPlan): Promise<void> {
+  const stmts: D1PreparedStatement[] = [];
+  if (plan.novos.length) {
+    stmts.push(
+      db
+        .prepare(
+          `INSERT INTO transactions (nucleo_id, date, amount_cents, kind, category_id, payee, note, user_id, import_ref, import_desc)
+           SELECT ?1, json_extract(j.value, '$.date'), json_extract(j.value, '$.cents'), json_extract(j.value, '$.kind'),
+                  json_extract(j.value, '$.cat'), json_extract(j.value, '$.payee'), '', ?2,
+                  json_extract(j.value, '$.ref'), json_extract(j.value, '$.desc')
+           FROM json_each(?3) j
+           WHERE json_extract(j.value, '$.ref') NOT IN (SELECT import_ref FROM transactions WHERE nucleo_id = ?1 AND import_ref IS NOT NULL)`,
+        )
+        .bind(nucleoId, userId, JSON.stringify(plan.novos)),
+    );
+  }
+  if (plan.vinculos.length) {
+    stmts.push(
+      db
+        .prepare(
+          `UPDATE transactions SET import_ref = json_extract(j.value, '$.ref'), import_desc = json_extract(j.value, '$.desc')
+           FROM json_each(?2) j
+           WHERE transactions.id = json_extract(j.value, '$.id') AND transactions.nucleo_id = ?1 AND transactions.import_ref IS NULL`,
+        )
+        .bind(nucleoId, JSON.stringify(plan.vinculos)),
+    );
+  }
+  if (plan.ignorar.length) {
+    stmts.push(db.prepare("INSERT OR IGNORE INTO import_ignored (nucleo_id, ref) SELECT ?1, j.value FROM json_each(?2) j").bind(nucleoId, JSON.stringify(plan.ignorar)));
+  }
+  if (plan.reviver.length) {
+    stmts.push(db.prepare("DELETE FROM import_ignored WHERE nucleo_id = ?1 AND ref IN (SELECT j.value FROM json_each(?2) j)").bind(nucleoId, JSON.stringify(plan.reviver)));
+  }
+  if (plan.titulares.length) {
+    stmts.push(db.prepare("INSERT OR IGNORE INTO nucleo_titulares (nucleo_id, nome) SELECT ?1, j.value FROM json_each(?2) j").bind(nucleoId, JSON.stringify(plan.titulares)));
+  }
+  if (stmts.length) await db.batch(stmts);
+}
+
+export async function listTitulares(db: D1Database, nucleoId: number): Promise<string[]> {
+  const r = await db.prepare("SELECT nome FROM nucleo_titulares WHERE nucleo_id = ? ORDER BY nome").bind(nucleoId).all<{ nome: string }>();
+  return r.results.map((x) => x.nome);
+}
+
+export async function deleteTitular(db: D1Database, nucleoId: number, nome: string): Promise<void> {
+  await db.prepare("DELETE FROM nucleo_titulares WHERE nucleo_id = ? AND nome = ?").bind(nucleoId, nome).run();
 }

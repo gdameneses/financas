@@ -6,8 +6,10 @@ Bundled in this repository:
 |---|---|---|
 | Chart.js 4.4.1 | `public/vendor/chart.umd.min.js` | MIT, Copyright (c) 2014-2022 Chart.js Contributors |
 | Phosphor Icons 2.1.1 (regular weight) | `public/icons/sprite.svg`, `src/sprite.ts` | MIT, Copyright (c) 2023 Phosphor Icons |
+| PDF.js 4.10.38 (`pdfjs-dist`) | `public/vendor/pdfjs/` | Apache-2.0, Copyright (c) Mozilla Foundation |
 
-Both are distributed under the MIT License:
+PDF.js is distributed under the Apache License 2.0 (https://www.apache.org/licenses/LICENSE-2.0); it reads the
+statement PDFs in the browser. Chart.js and Phosphor Icons are distributed under the MIT License:
 
 > Permission is hereby granted, free of charge, to any person obtaining a copy of this software and
 > associated documentation files (the "Software"), to deal in the Software without restriction, including

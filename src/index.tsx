@@ -4,8 +4,12 @@ import { accessLog, requireAccess, requireIpAndDevice, requireNucleo, requireNuc
 import { gates } from "./routes/gates";
 import { app as pages } from "./routes/pages";
 import { api } from "./routes/api";
+import { securityHeaders } from "./lib/security";
 
 const app = new Hono<AppEnv>();
+
+// Security headers on every response, assets and redirects included.
+app.use("*", securityHeaders);
 
 // Layer 0: static assets, client IP, and one access_log row for every other request.
 app.use("*", accessLog);

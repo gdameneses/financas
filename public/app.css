@@ -439,3 +439,63 @@ html.just-saved .txlist li:nth-child(2) .tx { animation: fresh .9s var(--ease) b
   .alert, html.just-saved .txlist li:nth-child(2) .tx { animation: none; }
   .toast { animation: fade 3s steps(1, end) forwards; }
 }
+
+/* ===== importar extrato ===== */
+textarea { width: 100%; padding: 12px 13px; border: 1px solid var(--line-strong); background: var(--surface); color: var(--fg); font: var(--fs-xs)/1.5 ui-monospace, "SF Mono", Menlo, Consolas, monospace; white-space: pre; overflow: auto; outline: none; resize: vertical; }
+textarea:focus { border-color: var(--focus); }
+input[type=file] { padding: 10px !important; font-size: var(--fs-md) !important; }
+h2 .count, details.impsec > summary .count { color: var(--fg-dim); font-size: var(--fs-sm); font-weight: 400; }
+h2 .muted { font-weight: 400; font-size: var(--fs-sm); }
+details.impsec > summary { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; color: var(--fg); }
+details.impsec > summary::after { margin-left: auto; float: none; color: var(--fg-dim); }
+details.impsec > summary .inout { font-size: var(--fs-sm); gap: 10px; }
+.implist { list-style: none; margin: 0; padding: 0; }
+
+/* phone: one card per row. Tick and name on top, date under it, categories on one strip that
+   scrolls sideways (one tap picks), the possible duplicate last. */
+.imp { display: grid; grid-template-columns: 28px minmax(0, 1fr) auto; grid-template-areas: "go name amt" ". date date" "cats cats cats" "dup dup dup"; gap: 8px 10px; align-items: start; padding: 14px 0; border-bottom: 1px solid var(--line); }
+.implist li:last-child { border-bottom: 0; }
+.imp.imphead { display: none; }
+.imp-go { grid-area: go; margin: 0; padding-top: 11px; }
+.imp-go input[type=checkbox] { width: 22px; height: 22px; }
+.imp-go input[type=checkbox]::before { width: 12px; height: 12px; }
+.imp-date { grid-area: date; max-width: 170px; }
+.imp-name { grid-area: name; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.imp-name small { color: var(--fg-faint); font-size: var(--fs-xs); overflow-wrap: anywhere; }
+.imp .amt { grid-area: amt; white-space: nowrap; padding-top: 9px; }
+.imp input:not([type=checkbox]):not([type=radio]) { padding: 9px 10px; font-size: var(--fs-md); }
+.catpick { grid-area: cats; display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; margin: 0 calc(-1 * var(--gutter)); padding: 0 var(--gutter); }
+.catpick::-webkit-scrollbar { display: none; }
+.catpick label { position: relative; flex: none; flex-direction: row; margin: 0; padding: 7px 11px; border: 1px solid var(--line); color: var(--fg-dim); font-size: var(--fs-sm); line-height: 1.3; white-space: nowrap; cursor: pointer; }
+.catpick input { position: absolute; opacity: 0; width: 1px; height: 1px; margin: 0; pointer-events: none; }
+.catpick label:has(input:checked) { color: var(--fg); border-color: var(--out); }
+.imp.in .catpick label:has(input:checked) { border-color: var(--in); }
+.catpick label:has(input:focus-visible) { outline: 1px solid var(--focus); outline-offset: 2px; }
+.imp-dup { grid-area: dup; display: flex; flex-direction: column; gap: 6px; font-size: var(--fs-sm); min-width: 0; }
+.imp-dup:empty, .catpick:empty { display: none; }
+.imp-dup .match { color: var(--focus); border-bottom: 0; overflow-wrap: anywhere; }
+.imp-x { color: var(--fg-dim); cursor: pointer; }
+/* a row that stays out steps back; its fields are still there if the tick comes back */
+.imp:has(.imp-on:not(:checked)) .imp-name, .imp:has(.imp-on:not(:checked)) .imp-date,
+.imp:has(.imp-on:not(:checked)) .amt, .imp:has(.imp-on:not(:checked)) .catpick { opacity: .45; }
+.imp:has(.imp-nossa:checked) .imp-x { color: var(--fg); }
+
+@media (min-width: 1024px) {
+  main.wide { max-width: 1560px; }
+  /* desktop: a table. Categories sit on the row, wrapped, so one click picks. */
+  .imp, .imphead { grid-template-columns: 28px 148px minmax(180px, 1.1fr) 116px minmax(280px, 2fr) minmax(160px, .9fr); grid-template-areas: "go date name amt cats dup"; gap: 4px 14px; padding: 9px 0; }
+  .imp.imphead { display: grid; color: var(--fg-dim); font-size: var(--fs-sm); border-bottom: 1px solid var(--line-strong); padding: 6px 0; }
+  .imp.imphead > * { grid-area: auto; padding-top: 0; }
+  .imp.imphead:hover { background: none; }
+  .submitbar .actions #impsubmit { flex-basis: 280px; }
+  .imp-date { max-width: none; }
+  .imp .amt { text-align: right; }
+  .imp-go { padding-top: 9px; }
+  .imp-go input[type=checkbox] { width: 18px; height: 18px; }
+  .imp-go input[type=checkbox]::before { width: 10px; height: 10px; }
+  .catpick { flex-wrap: wrap; overflow: visible; margin: 0; padding: 4px 0 0; gap: 4px; }
+  .catpick label { padding: 3px 8px; font-size: var(--fs-xs); }
+  .catpick label:hover { color: var(--fg); border-color: var(--fg-dim); }
+  .imp-dup { padding-top: 8px; }
+  .imp:hover { background: var(--surface); }
+}

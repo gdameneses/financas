@@ -8,11 +8,13 @@ type Props = {
   children: Child;
   /** Hide nav + add button on gate pages and full-screen forms. */
   bare?: boolean;
+  /** Full-width page on a desktop (the statement review table). */
+  wide?: boolean;
   active?: "home" | "tx" | "plan" | "dividas" | "mais";
   toast?: string;
 };
 
-export const Layout = ({ title, children, bare, active, toast }: Props) => (
+export const Layout = ({ title, children, bare, wide, active, toast }: Props) => (
   <html lang="pt-BR">
     <head>
       <meta charset="utf-8" />
@@ -44,7 +46,7 @@ export const Layout = ({ title, children, bare, active, toast }: Props) => (
     <body>
       {raw(SPRITE)}
       {toast ? <div class="toast" id="toast">{toast}</div> : null}
-      <main class={bare ? "bare" : ""}>{children}</main>
+      <main class={`${bare ? "bare" : ""}${wide ? " wide" : ""}`}>{children}</main>
       {bare ? null : (
         <>
           <a class="fab" href="/nova" aria-label="Novo lançamento">

@@ -5,9 +5,10 @@ import { findSession, sessionTokenFromRequest } from "./auth/session";
 import { currentNucleo } from "./nucleos";
 import { clientIp, ipAllowed } from "./lib/ip";
 import { logAccess, type Outcome } from "./lib/accesslog";
+import { crossSiteWrite } from "./lib/security";
 
 // Static assets must load on the gate pages too; they are not logged.
-const PUBLIC_FILES = new Set(["/manifest.webmanifest", "/sw.js", "/app.css", "/app.js", "/offline.html"]);
+const PUBLIC_FILES = new Set(["/manifest.webmanifest", "/sw.js", "/app.css", "/app.js", "/importar.js", "/extrato-pdf.mjs", "/offline.html"]);
 const isPublicAsset = (path: string) => PUBLIC_FILES.has(path) || path.startsWith("/icons/") || path.startsWith("/vendor/");
 
 // NOTE: every path comparison below uses c.req.path, the decoded path Hono routes on
@@ -22,7 +23,12 @@ export const accessLog: MiddlewareHandler<AppEnv> = async (c, next) => {
   }
   if (isPublicAsset(c.req.path)) return c.env.ASSETS.fetch(c.req.raw);
   c.set("ip", clientIp(c.req.raw));
-  await next();
+  if (crossSiteWrite(c.req.raw)) {
+    c.set("outcome", "cross_site");
+    c.res = c.text("Origem não permitida", 403);
+  } else {
+    await next();
+  }
   const outcome = (c.get("outcome") as Outcome | undefined) ?? (c.res.status >= 400 ? "forbidden" : "ok");
   logAccess(c, c.res.status, outcome);
 };

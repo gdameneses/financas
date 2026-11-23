@@ -12,7 +12,11 @@ export type Outcome =
   | "device_denied"
   | "unauthenticated"
   | "banned"
-  | "forbidden";
+  | "forbidden"
+  | "cross_site"; // state-changing request from another site (CSRF attempt or a stray form)
+
+/** Rows older than this are pruned now and then (see logAccess). */
+export const ACCESS_LOG_KEEP_DAYS = 180;
 
 export function logAccess(c: Context<AppEnv>, status: number, outcome: Outcome): void {
   const req = c.req.raw;
@@ -30,7 +34,12 @@ export function logAccess(c: Context<AppEnv>, status: number, outcome: Outcome):
     status,
     outcome,
   );
-  const run = stmt.run().catch((e) => console.error("access_log", e));
+  // About one write in a hundred also prunes old rows: no cron, and no extra write on the rest.
+  const prune = Math.random() < 0.01;
+  const run = (prune
+    ? c.env.DB.batch([stmt, c.env.DB.prepare("DELETE FROM access_log WHERE at < datetime('now', ?)").bind(`-${ACCESS_LOG_KEEP_DAYS} days`)])
+    : stmt.run()
+  ).catch((e) => console.error("access_log", e));
   try {
     c.executionCtx.waitUntil(run);
   } catch {

@@ -47,6 +47,11 @@ mais.get("/mais", async (c) => {
               </a>
             </li>
             <li>
+              <a href="/importar">
+                <Icon name="bank" /> Importar extrato
+              </a>
+            </li>
+            <li>
               <a href="/api/export.json" download>
                 <Icon name="download-simple" /> Exportar o núcleo (JSON)
               </a>
