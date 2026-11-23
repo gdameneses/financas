@@ -5,6 +5,7 @@ import { Icon } from "../pages/bits";
 import { hashPassword, verifyPassword } from "../auth/crypto";
 import { clearLoginAttempts, destroyOtherSessions, loginRateLimited, recordLoginAttempt } from "../auth/session";
 import { currentNucleo } from "../nucleos";
+import { countPendencias } from "./pendencias";
 
 export const mais = new Hono<AppEnv>();
 
@@ -17,6 +18,7 @@ mais.get("/mais", async (c) => {
   const pending = user.appAdmin
     ? ((await c.env.DB.prepare("SELECT COUNT(*) AS n FROM devices WHERE status = 'pending'").first<{ n: number }>())?.n ?? 0)
     : 0;
+  const abertas = nucleo && nucleoAdmin ? await countPendencias(c.env.DB, nucleo.id) : 0;
   return c.html(
     <Layout title="Mais" active="mais" toast={c.req.query("ok") ?? undefined}>
       <h1>Mais</h1>
@@ -49,6 +51,12 @@ mais.get("/mais", async (c) => {
             <li>
               <a href="/importar">
                 <Icon name="bank" /> Importar extrato
+              </a>
+            </li>
+            <li>
+              <a href="/pendencias">
+                <Icon name="question" /> Pendências
+                {abertas ? <small class="badge new">{abertas} em aberto</small> : null}
               </a>
             </li>
             <li>

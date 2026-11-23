@@ -11,6 +11,7 @@ import { fimDoMes, proximosMeses } from "../lib/projecoes";
 import { getCookie, setCookie } from "hono/cookie";
 import { formatBRL } from "../lib/money";
 import { parseId } from "../middleware";
+import { countPendencias } from "./pendencias";
 
 export const home = new Hono<AppEnv>();
 
@@ -38,7 +39,7 @@ home.get("/", async (c) => {
   if (planMonth === thisMonth) await syncAlerts(db, nucleo.id);
   // Cash on hand as of the end of what is shown, never past today.
   const cashUpTo = range.to < today ? range.to : today;
-  const [totals, ajustes, txs, plan, alerts, days, cash, cats, debts, history, monthTotals, monthAjustes] = await Promise.all([
+  const [totals, ajustes, txs, plan, alerts, days, cash, cats, debts, history, monthTotals, monthAjustes, abertas] = await Promise.all([
     totalsByCategory(db, nucleo.id, range),
     ajustesTotal(db, nucleo.id, range),
     listTransactions(db, nucleo.id, { range, limit: admin ? 8 : 20 }),
@@ -52,6 +53,7 @@ home.get("/", async (c) => {
     // projections always speak about the current month, whatever period is on screen
     isCurrent ? Promise.resolve(null) : totalsByCategory(db, nucleo.id, thisMonth),
     isCurrent ? Promise.resolve(null) : ajustesTotal(db, nucleo.id, thisMonth),
+    admin ? countPendencias(db, nucleo.id) : Promise.resolve(0),
   ]);
   const income = totals.filter((t) => t.kind === "in").reduce((a, t) => a + t.total, 0);
   const expense = totals.filter((t) => t.kind === "out").reduce((a, t) => a + t.total, 0);
@@ -94,6 +96,11 @@ home.get("/", async (c) => {
   return c.html(
     <Layout title="Início" active="home" toast={c.req.query("ok") ?? undefined}>
       <PeriodNav period={period} base="/" />
+      {abertas ? (
+        <a class="alert pend-banner" href="/pendencias">
+          <Icon name="question" /> {abertas === 1 ? "1 linha de extrato" : `${abertas} linhas de extrato`} para identificar
+        </a>
+      ) : null}
       <section class="stats">
         <div class="hero stat">
           <small>

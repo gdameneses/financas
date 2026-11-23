@@ -499,3 +499,25 @@ details.impsec > summary .inout { font-size: var(--fs-sm); gap: 10px; }
   .imp-dup { padding-top: 8px; }
   .imp:hover { background: var(--surface); }
 }
+
+/* pendências: one card per statement row, big targets for the phone */
+.pendlist { list-style: none; margin: 0; padding: 0; }
+.card.pend { border-left-width: 3px; }
+.card.pend.out { border-left-color: var(--out); }
+.card.pend.in { border-left-color: var(--in); }
+.pend-head { display: flex; gap: 12px; align-items: flex-start; }
+.pend-head .amt { white-space: nowrap; font-size: var(--fs-lg); line-height: 1.2; }
+.pend-desc { font-size: var(--fs-md); overflow-wrap: anywhere; }
+.pend-form { margin-top: 10px; gap: 10px; }
+.pend-form label { margin: 0; }
+.pend-form textarea { width: 100%; min-height: 3.2em; padding: 12px 13px; border: 1px solid var(--line-strong); background: var(--surface); color: var(--fg); font: inherit; font-size: 1rem; white-space: pre-wrap; resize: vertical; outline: none; }
+.pend-form textarea:focus { border-color: var(--focus); }
+.pend-fields { flex-wrap: wrap; }
+.pend-fields label { flex: 1 1 160px; }
+.pend-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.pend-actions .btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 48px; }
+.pend-actions .btn:first-child { grid-column: 1 / -1; }
+.pend-donelist { padding: 0 14px 8px; }
+.pend-done { display: flex; align-items: center; gap: 8px; padding: 10px 0; border-top: 1px solid var(--line); }
+.pend-done .txt small { white-space: normal; }
+a.alert.pend-banner { display: flex; align-items: center; gap: 8px; margin: 12px 0; color: var(--fg); border-left-color: var(--focus); }

@@ -11,6 +11,7 @@ import { admin } from "./admin";
 import { nucleos } from "./nucleos";
 import { dividas } from "./dividas";
 import { importar } from "./importar";
+import { pendencias } from "./pendencias";
 
 export const app = new Hono<AppEnv>();
 
@@ -30,13 +31,16 @@ app.route("/planejamento", planejamento);
 app.route("/", dividas);
 app.get("/orcamento", (c) => c.redirect("/planejamento" + (c.req.query("mes") ? `?mes=${c.req.query("mes")}` : "")));
 
-// Núcleo admins only: categories, reports and the statement import.
+// Núcleo admins only: categories, reports, the statement import and its pendências.
 app.use("/categorias/*", requireNucleoAdmin);
 app.use("/categorias", requireNucleoAdmin);
 app.use("/relatorios/*", requireNucleoAdmin);
 app.use("/relatorios", requireNucleoAdmin);
 app.use("/importar/*", requireNucleoAdmin);
 app.use("/importar", requireNucleoAdmin);
+app.use("/pendencias/*", requireNucleoAdmin);
+app.use("/pendencias", requireNucleoAdmin);
 app.route("/categorias", categorias);
 app.route("/relatorios", relatorios);
 app.route("/importar", importar);
+app.route("/pendencias", pendencias);
