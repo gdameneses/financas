@@ -81,6 +81,12 @@ p a { font-size: inherit; }
 .legend li span { flex: 1 1 auto; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .legend li b { flex: none; margin-left: auto; padding-left: 8px; font-weight: 400; color: var(--fg); }
 .legend i { width: 8px; height: 8px; border-radius: 0; flex: none; }
+.legend li > a { display: flex; align-items: center; gap: 7px; flex: 1; min-width: 0; color: inherit; text-decoration: none; }
+.legend li > a span { flex: 1 1 auto; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.legend li > a b { flex: none; margin-left: auto; padding-left: 8px; font-weight: 400; color: var(--fg); }
+.legend li > a:hover span, .legend li > a:focus-visible span { color: var(--fg); text-decoration: underline; text-underline-offset: 3px; }
+.filterchip { display: flex; align-items: center; gap: 10px; font-size: var(--fs-sm); color: var(--fg-dim); margin: 0 0 10px; }
+.filterchip a { color: var(--fg); }
 
 /* transaction list */
 .txlist { list-style: none; margin: 0; padding: 0; }

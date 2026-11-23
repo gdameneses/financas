@@ -16,7 +16,7 @@ import {
   type TransactionView,
   type TxInput,
 } from "../db";
-import { isISODate, parsePeriod, todayISO } from "../lib/dates";
+import { isISODate, parsePeriod, periodQuery, todayISO } from "../lib/dates";
 import { formatBRL, parseBRL } from "../lib/money";
 
 export const transacoes = new Hono<AppEnv>();
@@ -185,16 +185,21 @@ transacoes.get("/transacoes", async (c) => {
   const period = parsePeriod({ mes: c.req.query("mes"), de: c.req.query("de"), ate: c.req.query("ate") });
   const catQ = c.req.query("cat");
   const categoryId = catQ === "none" ? null : catQ ? Number(catQ) : undefined;
+  const tipoQ = c.req.query("tipo");
+  const kind = tipoQ === "saida" ? "out" : tipoQ === "entrada" ? "in" : undefined;
+  const keep: Record<string, string> = {};
+  if (catQ) keep.cat = catQ;
+  if (kind) keep.tipo = tipoQ!;
   const n = c.get("nucleo").id;
   const [txs, cats] = await Promise.all([
-    listTransactions(c.env.DB, n, { range: { from: period.from, to: period.to }, categoryId }),
+    listTransactions(c.env.DB, n, { range: { from: period.from, to: period.to }, categoryId, kind }),
     listCategories(c.env.DB, n),
   ]);
   const inTotal = txs.filter((t) => t.kind === "in").reduce((a, t) => a + t.amount_cents, 0);
   const outTotal = txs.filter((t) => t.kind === "out").reduce((a, t) => a + t.amount_cents, 0);
   return c.html(
     <Layout title="Lançamentos" active="tx" toast={c.req.query("ok") ?? undefined}>
-      <PeriodNav period={period} base="/transacoes" keep={catQ ? { cat: catQ } : {}} />
+      <PeriodNav period={period} base="/transacoes" keep={keep} />
       <form method="get" action="/transacoes" class="filter">
         {period.kind === "mes" ? (
           <input type="hidden" name="mes" value={period.month} />
@@ -204,6 +209,7 @@ transacoes.get("/transacoes", async (c) => {
             <input type="hidden" name="ate" value={period.to} />
           </>
         )}
+        {kind ? <input type="hidden" name="tipo" value={tipoQ} /> : null}
         <select name="cat" onchange="this.form.submit()">
           <option value="">Todas as categorias</option>
           <option value="none" selected={catQ === "none"}>
@@ -217,6 +223,12 @@ transacoes.get("/transacoes", async (c) => {
           ))}
         </select>
       </form>
+      {kind ? (
+        <p class="filterchip">
+          Só {kind === "out" ? "saídas" : "entradas"}
+          <a href={`/transacoes?${periodQuery(period)}${catQ ? `&cat=${encodeURIComponent(catQ)}` : ""}`}>mostrar entradas também</a>
+        </p>
+      ) : null}
       {txs.length ? (
         <p class="inout listtotal">
           <span class="in">+ {formatBRL(inTotal)}</span>

@@ -60,10 +60,13 @@ home.get("/", async (c) => {
   const ajusteNet = ajustes.in - ajustes.out;
   const balance = income - expense + ajusteNet;
   const out = totals.filter((t) => t.kind === "out");
+  /** The list of entries behind one slice of "Para onde foi": same period, that category, expenses only. */
+  const catHref = (id: number | null) => `/transacoes?${periodQuery(period)}&cat=${id ?? "none"}&tipo=saida`;
   const donut = {
     labels: out.map((t) => t.name ?? "Sem categoria"),
     values: out.map((t) => t.total),
     colors: out.map((t) => t.color ?? "#7d7d7d"),
+    hrefs: out.map((t) => catHref(t.category_id)),
   };
   const planned = plan.lines.slice(0, 8);
   const planChart = {
@@ -223,9 +226,11 @@ home.get("/", async (c) => {
               <ul class="legend">
                 {out.map((t) => (
                   <li>
-                    <i style={`background:${t.color ?? "#7d7d7d"}`}></i>
-                    <span>{t.name ?? "Sem categoria"}</span>
-                    <b>{formatBRL(t.total)}</b>
+                    <a href={catHref(t.category_id)}>
+                      <i style={`background:${t.color ?? "#7d7d7d"}`}></i>
+                      <span>{t.name ?? "Sem categoria"}</span>
+                      <b>{formatBRL(t.total)}</b>
+                    </a>
                   </li>
                 ))}
               </ul>

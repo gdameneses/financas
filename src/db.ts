@@ -105,7 +105,7 @@ export async function deleteCategory(db: D1Database, nucleoId: number, id: numbe
 export async function listTransactions(
   db: D1Database,
   nucleoId: number,
-  opts: { month?: string; range?: Range; categoryId?: number | null; limit?: number; semAjuste?: boolean } = {},
+  opts: { month?: string; range?: Range; categoryId?: number | null; kind?: Kind; limit?: number; semAjuste?: boolean } = {},
 ): Promise<TransactionView[]> {
   const where: string[] = ["t.nucleo_id = ?"];
   const binds: unknown[] = [nucleoId];
@@ -115,6 +115,10 @@ export async function listTransactions(
     binds.push(range.from, range.to);
   }
   if (opts.semAjuste) where.push(NOT_AJUSTE);
+  if (opts.kind) {
+    where.push("t.kind = ?");
+    binds.push(opts.kind);
+  }
   if (opts.categoryId === null) where.push("t.category_id IS NULL");
   else if (opts.categoryId !== undefined) {
     where.push("t.category_id = ?");

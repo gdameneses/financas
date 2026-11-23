@@ -136,3 +136,31 @@ describe("planejamento anual", () => {
     expect(page).toContain('class="over');
   });
 });
+
+describe("para onde foi → lançamentos", () => {
+  it("links each category to its entries in the same period, expenses only", async () => {
+    const b = await admin();
+    const nid = await nucleoIdByName("Casa");
+    const mercado = await cat(nid, "Mercado", "out");
+    await b.form("/nova", { kind: "out", amount: "50,00", date: "2026-10-05", category_id: String(mercado), payee: "Feira" });
+    await b.form("/nova", { kind: "out", amount: "20,00", date: "2026-10-06", category_id: "", payee: "Sem cat saída" });
+    await b.form("/nova", { kind: "in", amount: "999,00", date: "2026-10-07", category_id: "", payee: "Sem cat entrada" });
+    await b.form("/nova", { kind: "out", amount: "70,00", date: "2026-11-02", category_id: String(mercado), payee: "Outro mês" });
+
+    const home = await (await b.fetch("/?de=2026-10-01&ate=2026-10-31")).text();
+    expect(home).toContain(`href="/transacoes?de=2026-10-01&amp;ate=2026-10-31&amp;cat=${mercado}&amp;tipo=saida"`);
+    expect(home).toContain(`href="/transacoes?de=2026-10-01&amp;ate=2026-10-31&amp;cat=none&amp;tipo=saida"`);
+
+    const list = await (await b.fetch(`/transacoes?de=2026-10-01&ate=2026-10-31&cat=${mercado}&tipo=saida`)).text();
+    expect(list).toContain("Feira");
+    expect(list).not.toContain("Outro mês");
+    expect(list).toContain("Só saídas");
+
+    // "Sem categoria" in the donut is expenses only, so the list must leave the uncategorised income out
+    const none = await (await b.fetch("/transacoes?de=2026-10-01&ate=2026-10-31&cat=none&tipo=saida")).text();
+    expect(none).toContain("Sem cat saída");
+    expect(none).not.toContain("Sem cat entrada");
+    // the period links keep the filter
+    expect(none).toContain("tipo=saida");
+  });
+});

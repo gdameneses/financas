@@ -203,7 +203,13 @@
       made.push(new Chart(donut, {
         type: "doughnut",
         data: { labels: d.labels, datasets: [{ data: d.values, backgroundColor: d.colors, borderWidth: 0 }] },
-        options: { cutout: "68%", maintainAspectRatio: false, plugins: { legend: { display: false }, tooltip: { callbacks: { label: function (c) { return " " + brl(c.parsed); } } } } },
+        options: {
+          cutout: "68%", maintainAspectRatio: false,
+          plugins: { legend: { display: false }, tooltip: { callbacks: { label: function (c) { return " " + brl(c.parsed); } } } },
+          // a slice opens the entries behind it, like its line in the legend
+          onClick: function (e, els) { if (d.hrefs && els.length) location.href = d.hrefs[els[0].index]; },
+          onHover: function (e, els) { e.native.target.style.cursor = d.hrefs && els.length ? "pointer" : ""; },
+        },
       }));
     }
     var bars = document.getElementById("bars");
